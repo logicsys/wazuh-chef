@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Cookbook Name:: opendistro
+# Cookbook:: opendistro
 # Attributes:: paths
 # Author:: Wazuh <info@wazuh.com>
 

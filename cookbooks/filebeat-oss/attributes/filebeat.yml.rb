@@ -1,4 +1,4 @@
-# Cookbook Name:: filebeat-oss
+# Cookbook:: filebeat-oss
 # Attribute:: filebeat.yml
 # Author:: Wazuh <info@wazuh.com>
 
@@ -8,11 +8,9 @@ default['filebeat']['yml'] = {
             'hosts' => [
                 {
                     'ip' => '0.0.0.0',
-                    'port' => 9200
-                }
-            ]
-        }
-    }
+                    'port' => 9200,
+                },
+            ],
+        },
+    },
 }
-
-

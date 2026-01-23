@@ -1,10 +1,10 @@
-# Cookbook Name:: wazuh-manager
+# Cookbook:: wazuh-manager
 # Attributes:: agent_conf
 # Author:: Wazuh <info@wazuh.com
 
 default['ossec']['centralized_configuration'] = {
     'enabled' => 'no',
-    'path' => '/var/ossec/etc/shared/default'
+    'path' => '/var/ossec/etc/shared/default',
 }
 
 # Example of configuration to include in agent.conf

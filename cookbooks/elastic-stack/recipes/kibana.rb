@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Cookbook Name:: elastic-stack
+# Cookbook:: elastic-stack
 # Recipe:: kibana
 # Author:: Wazuh <info@wazuh.com>
 
@@ -35,11 +35,11 @@ template "#{node['kibana']['config_path']}/kibana.yml" do
   source 'kibana.yml.erb'
   owner 'kibana'
   group 'kibana'
-  mode 0755
+  mode '755'
   variables({
               server_port: node['kibana']['yml']['server']['port'],
               server_host: node['kibana']['yml']['server']['host'],
-              elasticsearch_hosts: node['kibana']['yml']['elasticsearch']['hosts']
+              elasticsearch_hosts: node['kibana']['yml']['elasticsearch']['hosts'],
             })
 end
 
@@ -63,7 +63,7 @@ end
 execute 'Install the Wazuh app plugin for Kibana' do
   command "sudo -u kibana #{node['kibana']['package_path']}/bin/kibana-plugin install https://packages.wazuh.com/#{node['wazuh']['major_version']}/ui/kibana/wazuh_kibana-#{node['wazuh']['kibana_plugin_version']}-1.zip"
   not_if do
-    File.exist?("#{node['kibana']['package_path']}/optimize/wazuh/config/wazuh.yml")
+    ::File.exist?("#{node['kibana']['package_path']}/optimize/wazuh/config/wazuh.yml")
   end
 end
 
@@ -73,10 +73,10 @@ template "#{node['kibana']['package_path']}/optimize/wazuh/config/wazuh.yml" do
   source 'wazuh.yml.erb'
   owner 'kibana'
   group 'kibana'
-  mode 0755
+  mode '755'
   action :create
   variables({
-              api_credentials: node['kibana']['wazuh_api_credentials']
+              api_credentials: node['kibana']['wazuh_api_credentials'],
             })
 end
 
@@ -97,11 +97,12 @@ ruby_block 'Wait for elasticsearch' do
           (node['elastic']['yml']['network']['host']).to_s,
           node['elastic']['yml']['http']['port']
         )
-      rescue StandardError
-        nil
+               rescue StandardError
+                 nil
       end
 
-      puts 'Waiting elasticsearch....'; sleep 1
+      puts 'Waiting elasticsearch....'
+      sleep 1
     end
   end
 end
@@ -114,8 +115,8 @@ ruby_block 'Wait for kibana' do
           (node['kibana']['yml']['server']['host']).to_s,
           node['kibana']['yml']['server']['port']
         )
-      rescue StandardError
-        nil
+               rescue StandardError
+                 nil
       end
     end
   end

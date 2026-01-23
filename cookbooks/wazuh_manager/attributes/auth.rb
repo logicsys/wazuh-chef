@@ -1,4 +1,4 @@
-# Cookbook Name:: wazuh-manager
+# Cookbook:: wazuh-manager
 # Attributes:: auth
 # Author:: Wazuh <info@wazuh.com
 
@@ -14,5 +14,5 @@ default['ossec']['conf']['auth'] = {
     'ssl_verify_host' => false,
     'ssl_manager_cert' => "#{node['ossec']['dir']}/etc/sslmanager.cert",
     'ssl_manager_key' => "#{node['ossec']['dir']}/etc/sslmanager.key",
-    'ssl_auto_negotiate' => false
+    'ssl_auto_negotiate' => false,
 }

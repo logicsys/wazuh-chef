@@ -1,4 +1,4 @@
-# Cookbook Name:: wazuh-manager
+# Cookbook:: wazuh-manager
 # Attributes:: syscheck
 # Author:: Wazuh <info@wazuh.com
 
@@ -9,13 +9,13 @@ default['ossec']['conf']['syscheck'] = {
   'scan_on_start' => true,
   'alert_new_files' => true,
   'auto_ignore' => {
-    '@frequency' => '10', 
-    '@timeframe' => '3600', 
-    'content!' => false 
-  }, 
+    '@frequency' => '10',
+    '@timeframe' => '3600',
+    'content!' => false,
+  },
   'directories' => [
     { '@check_all' => true, 'content!' => '/etc,/usr/bin,/usr/sbin' },
-    { '@check_all' => true, 'content!' => '/bin,/sbin,/boot' }
+    { '@check_all' => true, 'content!' => '/bin,/sbin,/boot' },
   ],
   'ignore' => [
     '/etc/mtab',
@@ -34,7 +34,7 @@ default['ossec']['conf']['syscheck'] = {
     '/sys/kernel/debug',
     '/dev/core',
     { '@type' => 'sregex', 'content!' => '^/proc' },
-    { '@type' => 'sregex', 'content!' => '.log$|.swp$'}
+    { '@type' => 'sregex', 'content!' => '.log$|.swp$' },
   ],
   'nodiff' => '/etc/ssl/private.key',
   'skip_nfs' => true,
@@ -47,6 +47,6 @@ default['ossec']['conf']['syscheck'] = {
     'enabled' => true,
     'interval' => '5m',
     'max_interval' => '1h',
-    'max_eps' => '10'
-  }
+    'max_eps' => '10',
+  },
 }

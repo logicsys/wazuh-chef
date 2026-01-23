@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Cookbook Name:: elastic-stack
+# Cookbook:: elastic-stack
 # Recipe:: elasticsearch
 # Author:: Wazuh <info@wazuh.com>
 
@@ -43,7 +43,7 @@ template "#{node['elastic']['config_path']}/elasticsearch.yml" do
               path_logs: node['elastic']['yml']['path']['logs'],
               network_host: node['elastic']['yml']['network']['host'],
               http_port: node['elastic']['yml']['http']['port'],
-              initial_master_nodes: node['elastic']['yml']['cluster']['initial_master_nodes']
+              initial_master_nodes: node['elastic']['yml']['cluster']['initial_master_nodes'],
             })
 end
 
@@ -100,11 +100,12 @@ ruby_block 'Wait for elasticsearch' do
           (node['elastic']['yml']['network']['host']).to_s,
           node['elastic']['yml']['http']['port']
         )
-      rescue StandardError
-        nil
+               rescue StandardError
+                 nil
       end
 
-      puts 'Waiting for elasticsearch to start'; sleep 5
+      puts 'Waiting for elasticsearch to start'
+      sleep 5
     end
   end
 end

@@ -1,20 +1,20 @@
-# Cookbook Name:: filebeat
+# Cookbook:: filebeat
 # Recipe:: default
 # Author:: Wazuh <info@wazuh.com>
 
 # Install Filebeat package
 
 case node['platform']
-when 'debian','ubuntu'
+when 'debian', 'ubuntu'
   apt_package 'filebeat' do
-    version "#{node['elk']['patch_version']}" 
+    version "#{node['elk']['patch_version']}"
   end
 when 'redhat', 'centos', 'amazon', 'fedora', 'oracle'
-  if node['platform_version'] >= '8' 
+  if node['platform_version'] >= '8'
     dnf_package 'filebeat' do
       version "#{node['elk']['patch_version']}"
     end
-  else  
+  else
     yum_package 'filebeat' do
       version "#{node['elk']['patch_version']}"
     end
@@ -24,7 +24,7 @@ when 'opensuseleap', 'suse'
     version "#{node['elk']['patch_version']}"
   end
 else
-  raise "Currently platforn not supported yet. Feel free to open an issue on https://www.github.com/wazuh/wazuh-chef if you consider that support for a specific OS should be added"
+  raise 'Currently platforn not supported yet. Feel free to open an issue on https://www.github.com/wazuh/wazuh-chef if you consider that support for a specific OS should be added'
 end
 
 # Edit the file /etc/filebeat/filebeat.yml
@@ -57,7 +57,7 @@ end
 
 # Enable and start service
 
-service "filebeat" do
+service 'filebeat' do
   supports :start => true, :stop => true, :restart => true, :reload => true
   action [:enable, :start]
 end

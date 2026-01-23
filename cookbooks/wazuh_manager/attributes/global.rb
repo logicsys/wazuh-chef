@@ -1,4 +1,4 @@
-# Cookbook Name:: wazuh-manager
+# Cookbook:: wazuh-manager
 # Attributes:: global
 # Author:: Wazuh <info@wazuh.com
 
@@ -12,10 +12,10 @@ default['ossec']['conf']['global'] = {
     'email_from' => 'ossecm@example.wazuh.com',
     'email_to' => 'recipient@example.wazuh.com',
     'email_maxperhour' => 12,
-    'email_log_source' => "alerts.log",
-    'white_list' => [ 
-        '127.0.0.1', 
-        '^localhost.localdomain$', 
-        '127.0.0.53'
-    ]
+    'email_log_source' => 'alerts.log',
+    'white_list' => [
+        '127.0.0.1',
+        '^localhost.localdomain$',
+        '127.0.0.53',
+    ],
 }

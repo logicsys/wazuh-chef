@@ -1,4 +1,4 @@
-# Cookbook Name:: wazuh-manager
+# Cookbook:: wazuh-manager
 # Attributes:: rootcheck
 # Author:: Wazuh <info@wazuh.com
 
@@ -15,5 +15,5 @@ default['ossec']['conf']['rootcheck'] = {
     'frequency' => 43200,
     'rootkit_files' => "#{node['ossec']['dir']}/etc/rootcheck/rootkit_files.txt",
     'rootkit_trojans' => "#{node['ossec']['dir']}/etc/rootcheck/rootkit_trojans.txt",
-    'skip_nfs' => true
+    'skip_nfs' => true,
 }

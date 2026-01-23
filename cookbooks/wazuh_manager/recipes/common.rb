@@ -1,22 +1,22 @@
-# Cookbook Name:: wazuh-manager
+# Cookbook:: wazuh-manager
 # Recipe:: common
 # Author:: Wazuh <info@wazuh.com>
 
 ruby_block 'ossec install_type' do
   block do
-    if node['recipes'].include?('ossec::default')
-      type = 'local'
-    else
-      type = "test"
-    end
+    type = if node['recipes'].include?('ossec::default')
+             'local'
+           else
+             'test'
+           end
 
-    node.normal['ossec']['install_type'] = type
+    node.override['ossec']['install_type'] = type
   end
 end
 
 # Gyoku renders the XML.
 chef_gem 'gyoku' do
-  compile_time false if respond_to?(:compile_time)
+  compile_time false
 end
 
 ## Generate Ossec.conf
@@ -31,7 +31,6 @@ file "#{node['ossec']['dir']}/etc/ossec.conf" do
     all_conf = node['ossec']['conf'].to_hash
     Chef::OSSEC::Helpers.ossec_to_xml('ossec_config' => all_conf)
   }
-  
 end
 
 ## Generate agent.conf
@@ -50,4 +49,3 @@ if node['ossec']['centralized_configuration']['enabled'] == 'yes' && !node['osse
   end
 
 end
-

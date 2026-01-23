@@ -1,4 +1,4 @@
-# Cookbook Name:: wazuh-manager
+# Cookbook:: wazuh-manager
 # Recipe:: repository
 # Author:: Wazuh <info@wazuh.com>
 
@@ -20,26 +20,24 @@ when 'debian', 'ubuntu'
   end
 
   apt_update
-when 'redhat', 'centos', 'amazon', 'fedora', 'oracle'   
+when 'redhat', 'centos', 'amazon', 'fedora', 'oracle'
   yum_repository 'wazuh' do
     description 'WAZUH Yum Repository - www.wazuh.com'
     gpgcheck true
     gpgkey 'https://packages.wazuh.com/key/GPG-KEY-WAZUH'
-    enabled true 
+    enabled true
     baseurl "https://packages.wazuh.com/#{node['wazuh']['major_version']}/yum/"
     action :create
   end
 when 'opensuseleap', 'suse'
-  zypper_repository 'wazuh' do   
+  zypper_repository 'wazuh' do
     description 'WAZUH Zypper Repository - www.wazuh.com'
     gpgcheck true
     gpgkey 'https://packages.wazuh.com/key/GPG-KEY-WAZUH'
-    enabled true 
+    enabled true
     baseurl "https://packages.wazuh.com/#{node['wazuh']['major_version']}/yum/"
     action :create
   end
 else
-  raise "Currently platforn not supported yet. Feel free to open an issue on https://www.github.com/wazuh/wazuh-chef if you consider that support for a specific OS should be added"
+  raise 'Currently platforn not supported yet. Feel free to open an issue on https://www.github.com/wazuh/wazuh-chef if you consider that support for a specific OS should be added'
 end
-
-

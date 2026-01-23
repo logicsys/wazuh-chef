@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Cookbook Name:: elastic-stack
+# Cookbook:: elastic-stack
 # Attributes:: api
 # Author:: Wazuh <info@wazuh.com>
 
@@ -11,5 +11,5 @@ default['kibana']['wazuh_api_credentials'] = [
     'port' => 55000,
     'username' => 'wazuh',
     'password' => 'wazuh',
-  }
+  },
 ]

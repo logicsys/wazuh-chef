@@ -6,4 +6,4 @@ default['ossec']['conf']['client']['server']['retry_interval'] = '5'
 default['ossec']['conf']['client']['notify_time'] = 10
 default['ossec']['conf']['client']['time-reconnect'] = 60
 default['ossec']['conf']['client']['auto_restart'] = true
-default['ossec']['conf']['client']['crypto_method'] = "aes"
+default['ossec']['conf']['client']['crypto_method'] = 'aes'

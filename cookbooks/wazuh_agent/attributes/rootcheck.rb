@@ -11,5 +11,5 @@ default['ossec']['conf']['rootcheck'] = [{
     'frequency' => '43200',
     'rootkit_files' => "#{node['ossec']['dir']}/etc/shared/rootkit_files.txt",
     'rootkit_trojans' => "#{node['ossec']['dir']}/etc/shared/rootkit_trojans.txt",
-    'skip_nfs' => 'yes'    
+    'skip_nfs' => 'yes',
 }]

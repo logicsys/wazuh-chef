@@ -1,4 +1,4 @@
-# Cookbook Name:: filebeat-oss
+# Cookbook:: filebeat-oss
 # Recipe:: repository
 # Author:: Wazuh <info@wazuh.com>
 
@@ -17,9 +17,9 @@ when 'ubuntu', 'debian'
     components ['main']
     distribution 'stable'
     action :add
-    not_if {
-      File.exist?('/etc/apt/sources.list.d/wazuh.list')
-    }
+    not_if do
+      ::File.exist?('/etc/apt/sources.list.d/wazuh.list')
+    end
   end
 
   apt_update
@@ -28,19 +28,19 @@ when 'redhat', 'centos', 'amazon', 'fedora', 'oracle'
     description 'WAZUH Yum Repository - www.wazuh.com'
     gpgcheck true
     gpgkey 'https://packages.wazuh.com/key/GPG-KEY-WAZUH'
-    enabled true 
+    enabled true
     baseurl "https://packages.wazuh.com/#{node['wazuh']['major_version']}/yum/"
     action :create
   end
 when 'opensuseleap', 'suse'
-  zypper_repository 'wazuh' do   
+  zypper_repository 'wazuh' do
     description 'WAZUH Zypper Repository - www.wazuh.com'
     gpgcheck true
     gpgkey 'https://packages.wazuh.com/key/GPG-KEY-WAZUH'
-    enabled true 
+    enabled true
     baseurl "https://packages.wazuh.com/#{node['wazuh']['major_version']}/yum/"
     action :create
   end
 else
-  raise "Currently platforn not supported yet. Feel free to open an issue on https://www.github.com/wazuh/wazuh-chef if you consider that support for a specific OS should be added"
+  raise 'Currently platforn not supported yet. Feel free to open an issue on https://www.github.com/wazuh/wazuh-chef if you consider that support for a specific OS should be added'
 end

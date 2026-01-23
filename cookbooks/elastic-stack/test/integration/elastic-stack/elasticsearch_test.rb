@@ -2,7 +2,7 @@
 
 describe package('elasticsearch') do
   it { should be_installed }
-end 
+end
 
 describe file('/etc/elasticsearch/elasticsearch.yml') do
   its('owner') { should cmp 'root' }

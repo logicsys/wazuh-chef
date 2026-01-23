@@ -1,8 +1,8 @@
 #
-# Cookbook Name:: ossec
+# Cookbook:: ossec
 # Library:: helpers
 #
-# Copyright 2015, Opscode, Inc.
+# Copyright:: 2015, Opscode, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ class Chef
       def self.object_to_ossec(object)
         case object
         when Hash
-          object.keys.each do |k|
+          object.each_key do |k|
             if k == 'content!'
               object[:content!] = object_to_ossec(object.delete(k))
             else
@@ -58,9 +58,9 @@ class Chef
         require 'nokogiri'
         formatted_no_decl = Nokogiri::XML::Node::SaveOptions::FORMAT +
                             Nokogiri::XML::Node::SaveOptions::NO_DECLARATION
-        source= Gyoku.xml object_to_ossec(hash)
+        source = Gyoku.xml object_to_ossec(hash)
         doc = Nokogiri::XML source
-        doc.to_xml( save_with:formatted_no_decl )
+        doc.to_xml(save_with: formatted_no_decl)
       end
     end
   end

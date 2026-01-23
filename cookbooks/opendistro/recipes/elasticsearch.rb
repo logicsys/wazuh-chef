@@ -52,7 +52,7 @@ template "#{node['elastic']['config_path']}/elasticsearch.yml" do
               network_host: node['elastic']['yml']['network']['host'],
               http_port: node['elastic']['yml']['http']['port'],
               node_name: node['elastic']['yml']['node']['name'],
-              initial_master_nodes: node['elastic']['yml']['cluster']['initial_master_nodes']
+              initial_master_nodes: node['elastic']['yml']['cluster']['initial_master_nodes'],
             })
 end
 
@@ -137,15 +137,15 @@ template "#{node['searchguard']['config_path']}/search-guard.yml" do
   mode '0660'
   variables({
               elastic_node_ip: node['search_guard']['yml']['nodes']['elasticsearch']['ip'],
-              kibana_node_ip: node['search_guard']['yml']['nodes']['kibana']['ip']
+              kibana_node_ip: node['search_guard']['yml']['nodes']['kibana']['ip'],
             })
 end
 
 execute 'Run the Search Guard’s script to create the certificates' do
   command "#{node['searchguard']['config_path']}/tools/sgtlstool.sh -c #{node['searchguard']['config_path']}/search-guard.yml -ca -crt -t #{node['elastic']['certs_path']}/"
-  not_if {
-    File.exist?("#{node['elastic']['certs_path']}/root-ca.key")
-  }
+  not_if do
+    ::File.exist?("#{node['elastic']['certs_path']}/root-ca.key")
+  end
 end
 
 bash 'Compress all the necessary files to be sent to the all the instances' do
@@ -247,11 +247,12 @@ ruby_block 'Wait for elasticsearch' do
           (node['elastic']['yml']['network']['host']).to_s,
           node['elastic']['yml']['http']['port']
         )
-      rescue StandardError
-        nil
+               rescue StandardError
+                 nil
       end
 
-      puts 'Waiting for elasticsearch to start'; sleep 5
+      puts 'Waiting for elasticsearch to start'
+      sleep 5
     end
   end
 end

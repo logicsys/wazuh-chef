@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Cookbook Name:: elastic-stack
+# Cookbook:: elastic-stack
 # Attributes:: elasticsearch.yml
 # Author:: Wazuh <info@wazuh.com>
 
@@ -9,20 +9,20 @@ default['elastic']['yml'] = {
   'cluster' => {
     'name' => 'es-wazuh',
     'initial_master_nodes' => [
-      'es-node-01'
-    ]
+      'es-node-01',
+    ],
   },
   'node' => {
-    'name' => 'es-node-01'
+    'name' => 'es-node-01',
   },
   'path' => {
     'data' => '/var/lib/elasticsearch',
-    'logs' => '/var/log/elasticsearch'
+    'logs' => '/var/log/elasticsearch',
   },
   'network' => {
-    'host' => '0.0.0.0'
+    'host' => '0.0.0.0',
   },
   'http' => {
-    'port' => 9200
-  }
+    'port' => 9200,
+  },
 }

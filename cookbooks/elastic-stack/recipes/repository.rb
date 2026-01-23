@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Cookbook Name:: elastic-stack
+# Cookbook:: elastic-stack
 # Recipe:: repository
 # Author:: Wazuh <info@wazuh.com>
 

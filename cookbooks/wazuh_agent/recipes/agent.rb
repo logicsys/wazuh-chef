@@ -1,8 +1,8 @@
 #
-# Cookbook Name:: ossec
+# Cookbook:: ossec
 # Recipe:: agent_auth
 #
-# Copyright 2015, Opscode, Inc.
+# Copyright:: 2015, Opscode, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -34,12 +34,12 @@ when 'redhat', 'centos', 'amazon', 'fedora', 'oracle'
       version "#{node['wazuh']['patch_version']}"
     end
   end
-when 'opensuseleap', 'suse' 
+when 'opensuseleap', 'suse'
   zypper_package 'wazuh-agent' do
     version "#{node['wazuh']['patch_version']}"
   end
 else
-  raise "Currently platforn not supported yet. Feel free to open an issue on https://www.github.com/wazuh/wazuh-chef if you consider that support for a specific OS should be added"
+  raise 'Currently platforn not supported yet. Feel free to open an issue on https://www.github.com/wazuh/wazuh-chef if you consider that support for a specific OS should be added'
 end
 
 dir = node['ossec']['dir']
@@ -59,7 +59,7 @@ if agent_auth['wazuh_directory']
   args << ' -D ' + agent_auth['wazuh_directory']
 end
 
-if agent_auth['debug_mode'] == "true"
+if agent_auth['debug_mode'] == 'true'
   args << ' -d '
 end
 
@@ -71,7 +71,7 @@ if agent_auth['set_group']
   args << ' -G ' + agent_auth['set_group']
 end
 
-if agent_auth['agent_ip_by_manager'] == "true"
+if agent_auth['agent_ip_by_manager'] == 'true'
   args << ' -i '
 end
 

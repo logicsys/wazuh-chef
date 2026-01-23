@@ -1,4 +1,4 @@
-# Cookbook Name:: wazuh-manager
+# Cookbook:: wazuh-manager
 # Recipe:: default
 # Author:: Wazuh <info@wazuh.com>
 

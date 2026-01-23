@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Cookbook Name:: opendistro
+# Cookbook:: opendistro
 # Recipe:: kibana
 # Author:: Wazuh <info@wazuh.com>
 
@@ -38,9 +38,9 @@ template "#{node['kibana']['config_path']}/kibana.yml" do
   variables({
               server_port: (node['kibana']['yml']['server']['port']).to_s,
               server_host: (node['kibana']['yml']['server']['host']).to_s,
-              elasticsearch_hosts: node['kibana']['yml']['elasticsearch']['hosts']
+              elasticsearch_hosts: node['kibana']['yml']['elasticsearch']['hosts'],
             })
-  mode 0755
+  mode '755'
 end
 
 # Update the optimize and plugins directories permissions
@@ -57,9 +57,9 @@ end
 
 execute 'Install Wazuh Kibana plugin' do
   command "sudo -u kibana #{node['kibana']['package_path']}/bin/kibana-plugin install https://packages.wazuh.com/#{node['wazuh']['major_version']}/ui/kibana/wazuh_kibana-#{node['wazuh']['kibana_plugin_version']}-1.zip"
-  not_if {
+  not_if do
     Dir.exist?("#{node['kibana']['plugins_path']}/wazuh")
-  }
+  end
 end
 
 # Create Wazuh-Kibana plugin configuration file
@@ -76,11 +76,11 @@ template "#{node['kibana']['optimize_path']}/wazuh/config/wazuh.yml" do
   mode '0600'
   action :create
   variables({
-              api_credentials: node['kibana']['wazuh_api_credentials']
+              api_credentials: node['kibana']['wazuh_api_credentials'],
             })
-  only_if {
+  only_if do
     Dir.exist?("#{node['kibana']['optimize_path']}/wazuh/config")
-  }
+  end
 end
 
 # Certificates placement
@@ -138,8 +138,8 @@ ruby_block 'Wait for elasticsearch' do
           (node['elastic']['yml']['network']['host']).to_s,
           node['elastic']['yml']['http']['port']
         )
-      rescue StandardError
-        nil
+               rescue StandardError
+                 nil
       end
     end
   end
@@ -153,8 +153,8 @@ ruby_block 'Wait for kibana' do
           (node['kibana']['yml']['server']['host']).to_s,
           node['kibana']['yml']['server']['port']
         )
-      rescue StandardError
-        nil
+               rescue StandardError
+                 nil
       end
     end
   end

@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Cookbook Name:: opendistro
+# Cookbook:: opendistro
 # Attributes:: kibana.yml
 # Author:: Wazuh <info@wazuh.com>
 
@@ -9,11 +9,11 @@
 default['kibana']['yml'] = {
   'server' => {
     'host' => '0.0.0.0',
-    'port' => 443
+    'port' => 443,
   },
   'elasticsearch' => {
     'hosts' => [
-      "https://#{node['elastic']['yml']['network']['host']}:#{node['elastic']['yml']['http']['port']}"
-    ]
-  }
+      "https://#{node['elastic']['yml']['network']['host']}:#{node['elastic']['yml']['http']['port']}",
+    ],
+  },
 }

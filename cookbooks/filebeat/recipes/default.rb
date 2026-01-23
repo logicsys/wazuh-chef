@@ -1,4 +1,4 @@
-# Cookbook Name:: filebeat
+# Cookbook:: filebeat
 # Recipe:: default
 # Author:: Wazuh <info@wazuh.com>
 

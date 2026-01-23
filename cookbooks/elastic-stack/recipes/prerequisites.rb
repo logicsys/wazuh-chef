@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Cookbook Name:: elastis-stack
+# Cookbook:: elastis-stack
 # Recipe:: prerequisites
 # Author:: Wazuh <info@wazuh.com>
 

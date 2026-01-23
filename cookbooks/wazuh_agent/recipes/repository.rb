@@ -1,8 +1,8 @@
 #
-# Cookbook Name:: ossec
+# Cookbook:: ossec
 # Recipe:: repository
 #
-# Copyright 2015, Opscode, Inc.
+# Copyright:: 2015, Opscode, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 # limitations under the License.
 #
 
-if platform_family?('ubuntu', 'debian')
+if platform_family?('debian')
   package 'lsb-release'
 
   ohai 'reload lsb' do
@@ -33,24 +33,23 @@ if platform_family?('ubuntu', 'debian')
   end
 
   apt_update
-elsif platform_family?('rhel', 'redhat', 'centos', 'amazon')
+elsif platform_family?('rhel', 'amazon')
   yum_repository 'wazuh' do
     description 'WAZUH Yum Repository - www.wazuh.com'
     gpgcheck true
     gpgkey 'https://packages.wazuh.com/key/GPG-KEY-WAZUH'
-    enabled true 
+    enabled true
     baseurl "https://packages.wazuh.com/#{node['wazuh']['major_version']}/yum/"
     action :create
   end
-elsif
-   zypper_repository 'wazuh' do
-    description 'WAZUH Yum Repository - www.wazuh.com'
-    gpgcheck true
-    gpgkey 'https://packages.wazuh.com/key/GPG-KEY-WAZUH'
-    enabled true 
-    baseurl "https://packages.wazuh.com/#{node['wazuh']['major_version']}/yum/"
-    action :create
-  end
+elsif zypper_repository 'wazuh' do
+        description 'WAZUH Yum Repository - www.wazuh.com'
+        gpgcheck true
+        gpgkey 'https://packages.wazuh.com/key/GPG-KEY-WAZUH'
+        enabled true
+        baseurl "https://packages.wazuh.com/#{node['wazuh']['major_version']}/yum/"
+        action :create
+      end
 else
-  raise "Currently platforn not supported yet. Feel free to open an issue on https://www.github.com/wazuh/wazuh-chef if you consider that support for a specific OS should be added"
+  raise 'Currently platforn not supported yet. Feel free to open an issue on https://www.github.com/wazuh/wazuh-chef if you consider that support for a specific OS should be added'
 end

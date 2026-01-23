@@ -1,4 +1,4 @@
-# Cookbook Name:: wazuh-manager
+# Cookbook:: wazuh-manager
 # Recipe:: manager
 # Author:: Wazuh <info@wazuh.com>
 
@@ -22,7 +22,7 @@ when 'opensuseleap', 'suse'
     version "#{node['wazuh']['patch_version']}-1"
   end
 else
-  raise "Currently platforn not supported yet. Feel free to open an issue on https://www.github.com/wazuh/wazuh-chef if you consider that support for a specific OS should be added"
+  raise 'Currently platforn not supported yet. Feel free to open an issue on https://www.github.com/wazuh/wazuh-chef if you consider that support for a specific OS should be added'
 end
 
 # The dependences should be installed only when the cluster is enabled
@@ -38,7 +38,7 @@ if node['ossec']['conf']['cluster']['disabled'] == 'no'
       package ['python-setuptools', 'python-cryptography']
     end
   else
-    raise "Currently platforn not supported yet. Feel free to open an issue on https://www.github.com/wazuh/wazuh-chef if you consider that support for a specific OS should be added"
+    raise 'Currently platforn not supported yet. Feel free to open an issue on https://www.github.com/wazuh/wazuh-chef if you consider that support for a specific OS should be added'
   end
 end
 
@@ -46,7 +46,7 @@ end
 if node['ossec']['conf']['cluster']['node_type'] == 'master'
   execute 'Enable Authd' do
     command '/var/ossec/bin/wazuh-control enable auth'
-    not_if "ps axu | grep wazuh-authd | grep -v grep"
+    not_if 'ps axu | grep wazuh-authd | grep -v grep'
   end
 end
 
@@ -66,14 +66,12 @@ template "#{node['ossec']['dir']}/etc/rules/local_rules.xml" do
   mode '0640'
 end
 
-
 template "#{node['ossec']['dir']}/etc/decoders/local_decoder.xml" do
   source 'ossec_local_decoder.xml.erb'
   owner 'root'
   group 'ossec'
   mode '0640'
 end
-
 
 template "#{node['ossec']['dir']}/api/configuration/api.yaml" do
   source 'api.yaml.erb'
@@ -85,7 +83,6 @@ template "#{node['ossec']['dir']}/api/configuration/api.yaml" do
     port: "#{node['api']['port']}"
   )
 end
-
 
 service 'wazuh' do
   service_name 'wazuh-manager'

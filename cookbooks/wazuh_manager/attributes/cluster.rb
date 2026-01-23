@@ -1,4 +1,4 @@
-# Cookbook Name:: wazuh-manager
+# Cookbook:: wazuh-manager
 # Attributes:: cluster
 # Author:: Wazuh <info@wazuh.com
 
@@ -11,8 +11,8 @@ default['ossec']['conf']['cluster'] = {
     'port' => 1516,
     'bind_addr' => '0.0.0.0',
     'nodes' => {
-        'node' => "NODE_IP"
+        'node' => 'NODE_IP',
     },
     'hidden' => false,
-    'disabled' => true
+    'disabled' => true,
 }

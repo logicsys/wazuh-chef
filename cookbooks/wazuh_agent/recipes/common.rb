@@ -1,8 +1,8 @@
 #
-# Cookbook Name:: ossec
+# Cookbook:: ossec
 # Recipe:: common
 #
-# Copyright 2010, Opscode, Inc.
+# Copyright:: 2010, Opscode, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@
 
 # Gyoku renders the XML.
 chef_gem 'gyoku' do
-  compile_time false if respond_to?(:compile_time)
+  compile_time false
 end
 
 file "#{node['ossec']['dir']}/etc/ossec.conf" do
@@ -33,7 +33,6 @@ file "#{node['ossec']['dir']}/etc/ossec.conf" do
     all_conf = node['ossec']['conf'].to_hash
     Chef::OSSEC::Helpers.ossec_to_xml('ossec_config' => all_conf)
   }
-
 end
 
 file "#{node['ossec']['dir']}/etc/shared/agent.conf" do

@@ -1,20 +1,20 @@
-# Cookbook Name:: filebeat-oss
+# Cookbook:: filebeat-oss
 # Recipe:: filebeat-oss
 # Author:: Wazuh <info@wazuh.com>
 
 # Install filebeat-oss pacakge
 
 case node['platform']
-when 'debian','ubuntu'
+when 'debian', 'ubuntu'
   apt_package 'filebeat' do
     version "#{node['elk']['patch_version']}"
   end
 when 'redhat', 'centos', 'amazon', 'fedora', 'oracle'
-  if node['platform_version'] >= '8' 
+  if node['platform_version'] >= '8'
     dnf_package 'filebeat' do
       version "#{node['elk']['patch_version']}"
     end
-  else  
+  else
     yum_package 'filebeat' do
       version "#{node['elk']['patch_version']}"
     end
@@ -22,9 +22,9 @@ when 'redhat', 'centos', 'amazon', 'fedora', 'oracle'
 when 'opensuseleap', 'suse'
   zypper_package 'filebeat' do
     version "#{node['elk']['patch_version']}"
-  end  
+  end
 else
-  raise "Currently platforn not supported yet. Feel free to open an issue on https://www.github.com/wazuh/wazuh-chef if you consider that support for a specific OS should be added"
+  raise 'Currently platforn not supported yet. Feel free to open an issue on https://www.github.com/wazuh/wazuh-chef if you consider that support for a specific OS should be added'
 end
 
 # Edit the file /etc/filebeat/filebeat.yml
@@ -34,8 +34,8 @@ template "#{node['filebeat']['config_path']}/filebeat.yml" do
   owner 'root'
   group 'root'
   mode '0640'
-  variables ({
-    hosts: node['filebeat']['yml']['output']['elasticsearch']['hosts']
+  variables({
+    hosts: node['filebeat']['yml']['output']['elasticsearch']['hosts'],
   })
 end
 
@@ -58,7 +58,7 @@ end
 # Configure Filebeat certificates
 
 directory "#{node['filebeat']['certs_path']}" do
-  action :create 
+  action :create
 end
 
 ruby_block 'Copy certificate files' do
@@ -67,8 +67,8 @@ ruby_block 'Copy certificate files' do
       IO.copy_stream("#{node['elastic']['certs_path']}/filebeat.pem", "#{node['filebeat']['certs_path']}/filebeat.pem")
       IO.copy_stream("#{node['elastic']['certs_path']}/filebeat.key", "#{node['filebeat']['certs_path']}/filebeat.key")
       IO.copy_stream("#{node['elastic']['certs_path']}/root-ca.pem", "#{node['filebeat']['certs_path']}/root-ca.pem")
-    else 
-      Chef::Log.fatal("Please copy the following files where Elasticserch is installed to 
+    else
+      Chef::Log.fatal("Please copy the following files where Elasticserch is installed to
         #{node['filebeat']['certs_path']}:
           - #{node['elastic']['certs_path']}/filebeat.pem
           - #{node['elastic']['certs_path']}/filebeat.key
@@ -82,14 +82,14 @@ ruby_block 'Copy certificate files' do
   action :run
 end
 
-# Enable and start service 
+# Enable and start service
 
-service "filebeat" do
+service 'filebeat' do
   supports :start => true, :stop => true, :restart => true, :reload => true
   action [:enable, :start]
-  only_if {
+  only_if do
     File.exist?("#{node['filebeat']['certs_path']}/filebeat.pem") &&
-    File.exist?("#{node['filebeat']['certs_path']}/filebeat.key") &&
-    File.exist?("#{node['filebeat']['certs_path']}/root-ca.pem")
-  }
+      File.exist?("#{node['filebeat']['certs_path']}/filebeat.key") &&
+      File.exist?("#{node['filebeat']['certs_path']}/root-ca.pem")
+  end
 end

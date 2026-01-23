@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Cookbook Name:: opendistro
+# Cookbook:: opendistro
 # Recipe:: repository
 # Author:: Wazuh <info@wazuh.com>
 
@@ -37,7 +37,7 @@ when 'opensuseleap', 'suse'
     gpgkey 'https://packages.wazuh.com/key/GPG-KEY-WAZUH'
     action :create
     not_if do
-      File.exist?('/etc/zypp/repos.d/wazuh.repo')
+      ::File.exist?('/etc/zypp/repos.d/wazuh.repo')
     end
   end
 else
