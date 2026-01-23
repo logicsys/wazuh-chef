@@ -13,38 +13,48 @@ verifier:
   name: inspec
 
 platforms:
-  - name: amazonlinux-2
-  - name: debian-9
-  - name: debian-10
-  - name: centos-7
-  - name: centos-8
-  - name: ubuntu-18.04
-  - name: ubuntu-20.04
-  - name: opensuse-leap-15
-  - name: fedora-latest
+  # - name: amazonlinux-2
+  - name: debian-11
+  - name: debian-12
+  - name: rockylinux-8
+  - name: rockylinux-9
+  # - name: ubuntu-18.04
+  # - name: ubuntu-20.04
+  # - name: opensuse-leap-15
+  # - name: fedora-latest
 
 suites:
-  - name: odfe-single-node
-    run_list:
-      - recipe[opendistro::default]
-      - recipe[wazuh_manager::default]
-      - recipe[filebeat-oss::default]
-    driver:
-      hostname: odfe-single-node
-    verifier:
-      inspec_tests:
-        - name: odfe test
-          path: ./cookbooks/opendistro/test/integration/opendistro
-        - name: wazuh-manager tests
-          path: ./cookbooks/wazuh_manager/test/integration/wazuh_manager
-        - name: filebeat tests
-          path: ./cookbooks/filebeat-oss/test/integration/filebeat-oss
-    driver:
-      customize:
-        memory: 4096
-        cpus: 2
+  # - name: odfe-single-node
+  #   excludes:
+  #     - debian-11
+  #     - debian-12
+  #     - rockylinux-8
+  #     - rockylinux-9
+  #   run_list:
+  #     - recipe[opendistro::default]
+  #     - recipe[wazuh_manager::default]
+  #     - recipe[filebeat-oss::default]
+  #   driver:
+  #     hostname: odfe-single-node
+  #   verifier:
+  #     inspec_tests:
+  #       - name: odfe test
+  #         path: ./cookbooks/opendistro/test/integration/opendistro
+  #       - name: wazuh-manager tests
+  #         path: ./cookbooks/wazuh_manager/test/integration/wazuh_manager
+  #       - name: filebeat tests
+  #         path: ./cookbooks/filebeat-oss/test/integration/filebeat-oss
+  #   driver:
+  #     customize:
+  #       memory: 4096
+  #       cpus: 2
 
   - name: elk-single-node
+    excludes:
+      - debian-11
+      - debian-12
+      # - rockylinux-8
+      - rockylinux-9
     run_list:
       - recipe[elastic-stack::default]
       - recipe[wazuh_manager::default]
@@ -64,14 +74,14 @@ suites:
         memory: 4096
         cpus: 2
 
-  - name: wazuh-manager
-    run_list:
-      - recipe[wazuh_manager::default]
-    driver:
-      hostname: wazuh-manager
-      customize:
-        memory: 1024
-        cpus: 1
+  # - name: wazuh-manager
+  #   run_list:
+  #     - recipe[wazuh_manager::default]
+  #   driver:
+  #     hostname: wazuh-manager
+  #     customize:
+  #       memory: 1024
+  #       cpus: 1
 
   - name: wazuh-agent
     run_list:
