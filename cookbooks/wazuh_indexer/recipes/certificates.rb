@@ -137,9 +137,13 @@ end
 
           Chef::Log.info("Converting #{key_file} from PKCS#1/EC format to PKCS#8 format")
 
-          # Backup original key
+          # Backup original key with restrictive permissions
           backup_path = "#{key_path}.pkcs1.bak"
-          ::File.write(backup_path, key_content) unless ::File.exist?(backup_path)
+          unless ::File.exist?(backup_path)
+            ::File.write(backup_path, key_content)
+            ::FileUtils.chown('wazuh-indexer', 'wazuh-indexer', backup_path)
+            ::File.chmod(0o400, backup_path)
+          end
 
           # Convert to PKCS#8 using openssl
           require 'mixlib/shellout'
@@ -156,7 +160,7 @@ end
             Chef::Log.info("Successfully converted #{key_file} to PKCS#8 format")
           else
             Chef::Log.warn("Failed to convert #{key_file}: #{convert_cmd.stderr}")
-            ::File.delete("#{key_path}.tmp") if ::File.exist?("#{key_path}.tmp")
+            ::FileUtils.rm_f("#{key_path}.tmp")
           end
         elsif key_content.include?('-----BEGIN PRIVATE KEY-----')
           Chef::Log.debug("#{key_file} is already in PKCS#8 format")
