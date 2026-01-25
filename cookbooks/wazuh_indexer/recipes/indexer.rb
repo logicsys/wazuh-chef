@@ -126,6 +126,55 @@ ruby_block 'wait_for_indexer' do
   only_if { ::File.exist?("#{certs_path}/indexer.pem") }
 end
 
+# Convert any PKCS#1 keys to PKCS#8 format before security init
+# This handles cases where certificates were manually deployed (not via certificates recipe)
+# OpenSearch security plugin requires keys in PKCS#8 format (-----BEGIN PRIVATE KEY-----)
+%w[indexer-key.pem admin-key.pem].each do |key_file|
+  key_path = "#{certs_path}/#{key_file}"
+
+  ruby_block "ensure_#{key_file}_pkcs8_format" do
+    block do
+      if ::File.exist?(key_path)
+        key_content = ::File.read(key_path)
+
+        # Check if key is in PKCS#1 (RSA) or EC format (not PKCS#8)
+        if key_content.include?('-----BEGIN RSA PRIVATE KEY-----') ||
+           key_content.include?('-----BEGIN EC PRIVATE KEY-----') ||
+           key_content.include?('-----BEGIN DSA PRIVATE KEY-----')
+
+          Chef::Log.info("Converting #{key_file} from PKCS#1/EC format to PKCS#8 format")
+
+          # Backup original key
+          backup_path = "#{key_path}.pkcs1.bak"
+          ::File.write(backup_path, key_content) unless ::File.exist?(backup_path)
+
+          # Convert to PKCS#8 using openssl
+          require 'mixlib/shellout'
+          convert_cmd = Mixlib::ShellOut.new(
+            "openssl pkcs8 -topk8 -inform PEM -outform PEM -in #{key_path} -out #{key_path}.tmp -nocrypt"
+          )
+          convert_cmd.run_command
+
+          if convert_cmd.exitstatus == 0
+            ::File.rename("#{key_path}.tmp", key_path)
+            ::FileUtils.chown('wazuh-indexer', 'wazuh-indexer', key_path)
+            ::File.chmod(0o400, key_path)
+            Chef::Log.info("Successfully converted #{key_file} to PKCS#8 format")
+          else
+            Chef::Log.warn("Failed to convert #{key_file}: #{convert_cmd.stderr}")
+            ::File.delete("#{key_path}.tmp") if ::File.exist?("#{key_path}.tmp")
+          end
+        end
+      end
+    end
+    action :run
+    only_if {
+      ::File.exist?(key_path) &&
+        !::File.exist?('/var/lib/wazuh-indexer/.security_initialized')
+    }
+  end
+end
+
 # Initialize security (only on first run with certificates)
 execute 'indexer_security_init' do
   command '/usr/share/wazuh-indexer/bin/indexer-security-init.sh'
