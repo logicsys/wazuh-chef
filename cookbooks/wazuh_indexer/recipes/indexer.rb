@@ -129,6 +129,9 @@ end
 # Convert any PKCS#1 keys to PKCS#8 format before security init
 # This handles cases where certificates were manually deployed (not via certificates recipe)
 # OpenSearch security plugin requires keys in PKCS#8 format (-----BEGIN PRIVATE KEY-----)
+# Track if any keys were converted (requires service restart)
+node.run_state['wazuh_indexer_keys_converted'] = false
+
 %w[indexer-key.pem admin-key.pem].each do |key_file|
   key_path = "#{certs_path}/#{key_file}"
 
@@ -164,18 +167,113 @@ end
             ::FileUtils.chown('wazuh-indexer', 'wazuh-indexer', key_path)
             ::File.chmod(0o400, key_path)
             Chef::Log.info("Successfully converted #{key_file} to PKCS#8 format")
+            node.run_state['wazuh_indexer_keys_converted'] = true
           else
             Chef::Log.warn("Failed to convert #{key_file}: #{convert_cmd.stderr}")
-            ::File.delete("#{key_path}.tmp") if ::File.exist?("#{key_path}.tmp")
+            ::FileUtils.rm_f("#{key_path}.tmp")
           end
         end
       end
     end
     action :run
-    only_if {
+    only_if do
       ::File.exist?(key_path) &&
         !::File.exist?('/var/lib/wazuh-indexer/.security_initialized')
-    }
+    end
+  end
+end
+
+# Restart service if keys were converted (service needs to reload the new key format)
+service 'wazuh-indexer-restart-after-key-conversion' do
+  service_name 'wazuh-indexer'
+  action :restart
+  only_if { node.run_state['wazuh_indexer_keys_converted'] }
+end
+
+# Wait for indexer to be ready after key conversion restart
+ruby_block 'wait_for_indexer_after_key_conversion' do
+  block do
+    require 'socket'
+    max_attempts = 30
+    attempts = 0
+    loop do
+      begin
+        TCPSocket.open(
+          node['wazuh_indexer']['yml']['network']['host'] == '0.0.0.0' ? '127.0.0.1' : node['wazuh_indexer']['yml']['network']['host'],
+          node['wazuh_indexer']['yml']['http']['port']
+        )
+        break
+      rescue StandardError
+        attempts += 1
+        raise 'Wazuh Indexer failed to start after key conversion' if attempts >= max_attempts
+
+        Chef::Log.info('Waiting for Wazuh Indexer to restart after key conversion...')
+        sleep 5
+      end
+    end
+  end
+  action :run
+  only_if { node.run_state['wazuh_indexer_keys_converted'] }
+end
+
+# Validate certificate chain and DN before security init
+# This helps diagnose "certificate_unknown" errors from mismatched certificates
+ruby_block 'validate_certificates' do
+  block do
+    require 'mixlib/shellout'
+
+    admin_cert = "#{node['wazuh_indexer']['certs_path']}/admin.pem"
+    root_ca = "#{node['wazuh_indexer']['certs_path']}/root-ca.pem"
+    configured_admin_dns = node['wazuh_indexer']['security']['admin_dn']
+
+    # Extract admin certificate DN
+    dn_cmd = Mixlib::ShellOut.new("openssl x509 -in #{admin_cert} -noout -subject -nameopt RFC2253")
+    dn_cmd.run_command
+    if dn_cmd.exitstatus == 0
+      # Parse DN from output like "subject=CN=admin,OU=Wazuh,O=Wazuh,L=California,C=US"
+      cert_dn = dn_cmd.stdout.strip.sub(/^subject=\s*/, '')
+      Chef::Log.info("Admin certificate DN: #{cert_dn}")
+
+      # Check if DN matches any configured admin_dn
+      dn_match = configured_admin_dns.any? { |configured_dn| cert_dn == configured_dn }
+      unless dn_match
+        Chef::Log.warn("=" * 80)
+        Chef::Log.warn("CERTIFICATE DN MISMATCH DETECTED")
+        Chef::Log.warn("=" * 80)
+        Chef::Log.warn("Admin certificate DN: #{cert_dn}")
+        Chef::Log.warn("Configured admin_dn:  #{configured_admin_dns.join(', ')}")
+        Chef::Log.warn("")
+        Chef::Log.warn("The admin certificate DN must match plugins.security.authcz.admin_dn")
+        Chef::Log.warn("Either regenerate certificates with matching DN, or update the attribute:")
+        Chef::Log.warn("  node['wazuh_indexer']['security']['admin_dn'] = ['#{cert_dn}']")
+        Chef::Log.warn("=" * 80)
+      end
+    else
+      Chef::Log.warn("Could not extract DN from admin certificate: #{dn_cmd.stderr}")
+    end
+
+    # Verify admin cert is signed by root CA
+    verify_cmd = Mixlib::ShellOut.new("openssl verify -CAfile #{root_ca} #{admin_cert}")
+    verify_cmd.run_command
+    if verify_cmd.exitstatus != 0
+      Chef::Log.warn("=" * 80)
+      Chef::Log.warn("CERTIFICATE CHAIN VALIDATION FAILED")
+      Chef::Log.warn("=" * 80)
+      Chef::Log.warn("The admin certificate is NOT signed by the root CA")
+      Chef::Log.warn("Verification output: #{verify_cmd.stdout.strip} #{verify_cmd.stderr.strip}")
+      Chef::Log.warn("")
+      Chef::Log.warn("The admin.pem must be signed by the same CA in root-ca.pem")
+      Chef::Log.warn("Regenerate certificates using wazuh-certs-tool.sh to ensure consistency")
+      Chef::Log.warn("=" * 80)
+    else
+      Chef::Log.info("Admin certificate chain validation: OK")
+    end
+  end
+  action :run
+  only_if do
+    ::File.exist?("#{node['wazuh_indexer']['certs_path']}/admin.pem") &&
+      ::File.exist?("#{node['wazuh_indexer']['certs_path']}/root-ca.pem") &&
+      !::File.exist?('/var/lib/wazuh-indexer/.security_initialized')
   end
 end
 
@@ -183,11 +281,11 @@ end
 execute 'indexer_security_init' do
   command '/usr/share/wazuh-indexer/bin/indexer-security-init.sh'
   action :run
-  only_if {
+  only_if do
     ::File.exist?("#{certs_path}/indexer.pem") &&
       ::File.exist?("#{certs_path}/admin.pem") &&
       !::File.exist?('/var/lib/wazuh-indexer/.security_initialized')
-  }
+  end
   notifies :create, 'file[/var/lib/wazuh-indexer/.security_initialized]', :immediately
 end
 
