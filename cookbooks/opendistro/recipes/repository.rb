@@ -6,40 +6,45 @@
 
 case node['platform']
 when 'debian', 'ubuntu'
-  package 'lsb-release'
-
-  ohai 'reload lsb' do
-    plugin 'lsb'
-    subscribes :reload, 'package[lsb-release]', :immediately
+  # Import GPG key using modern method
+  execute 'import_wazuh_gpg_key' do
+    command 'curl -s https://packages.wazuh.com/key/GPG-KEY-WAZUH | gpg --no-default-keyring --keyring gnupg-ring:/usr/share/keyrings/wazuh.gpg --import && chmod 644 /usr/share/keyrings/wazuh.gpg'
+    not_if { ::File.exist?('/usr/share/keyrings/wazuh.gpg') }
   end
 
-  # Install GPG key and add repository
-  apt_repository 'wazuh' do
-    uri "https://packages.wazuh.com/#{node['wazuh']['major_version']}/apt/"
-    key 'https://packages.wazuh.com/key/GPG-KEY-WAZUH'
-    distribution 'stable'
-    components ['main']
+  file '/etc/apt/sources.list.d/wazuh.list' do
+    content "deb [signed-by=/usr/share/keyrings/wazuh.gpg] https://packages.wazuh.com/#{node['wazuh']['major_version']}/apt/ stable main\n"
+    mode '0644'
+    notifies :update, 'apt_update[wazuh]', :immediately
   end
 
-  # Update the package information
-  apt_update
+  apt_update 'wazuh' do
+    action :nothing
+  end
 when 'redhat', 'centos', 'amazon', 'fedora', 'oracle', 'rocky'
   yum_repository 'wazuh' do
-    description 'Opendistroforelasticseach Yum'
+    description 'Wazuh repository'
     baseurl "https://packages.wazuh.com/#{node['wazuh']['major_version']}/yum/"
     gpgkey 'https://packages.wazuh.com/key/GPG-KEY-WAZUH'
+    gpgcheck true
+    enabled true
+    make_cache true
+    if node['platform_version'].to_i >= 9
+      options({ 'priority' => '1' })
+    else
+      options({ 'protect' => '1' })
+    end
     action :create
   end
 when 'opensuseleap', 'suse'
   zypper_repository 'wazuh' do
-    description 'Opendistroforelasticseach Zypper'
+    description 'Wazuh repository'
     baseurl "https://packages.wazuh.com/#{node['wazuh']['major_version']}/yum/"
     gpgkey 'https://packages.wazuh.com/key/GPG-KEY-WAZUH'
+    gpgcheck true
+    enabled true
     action :create
-    not_if do
-      ::File.exist?('/etc/zypp/repos.d/wazuh.repo')
-    end
   end
 else
-  raise 'Currently platforn not supported yet. Feel free to open an issue on https://www.github.com/wazuh/wazuh-chef if you consider that support for a specific OS should be added'
+  raise "Platform #{node['platform']} not supported. Please open an issue at https://github.com/wazuh/wazuh-chef"
 end

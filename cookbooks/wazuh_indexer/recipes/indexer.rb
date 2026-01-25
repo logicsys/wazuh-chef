@@ -237,16 +237,16 @@ ruby_block 'validate_certificates' do
       # Check if DN matches any configured admin_dn
       dn_match = configured_admin_dns.any? { |configured_dn| cert_dn == configured_dn }
       unless dn_match
-        Chef::Log.warn("=" * 80)
-        Chef::Log.warn("CERTIFICATE DN MISMATCH DETECTED")
-        Chef::Log.warn("=" * 80)
+        Chef::Log.warn('=' * 80)
+        Chef::Log.warn('CERTIFICATE DN MISMATCH DETECTED')
+        Chef::Log.warn('=' * 80)
         Chef::Log.warn("Admin certificate DN: #{cert_dn}")
         Chef::Log.warn("Configured admin_dn:  #{configured_admin_dns.join(', ')}")
-        Chef::Log.warn("")
-        Chef::Log.warn("The admin certificate DN must match plugins.security.authcz.admin_dn")
-        Chef::Log.warn("Either regenerate certificates with matching DN, or update the attribute:")
+        Chef::Log.warn('')
+        Chef::Log.warn('The admin certificate DN must match plugins.security.authcz.admin_dn')
+        Chef::Log.warn('Either regenerate certificates with matching DN, or update the attribute:')
         Chef::Log.warn("  node['wazuh_indexer']['security']['admin_dn'] = ['#{cert_dn}']")
-        Chef::Log.warn("=" * 80)
+        Chef::Log.warn('=' * 80)
       end
     else
       Chef::Log.warn("Could not extract DN from admin certificate: #{dn_cmd.stderr}")
@@ -256,17 +256,17 @@ ruby_block 'validate_certificates' do
     verify_cmd = Mixlib::ShellOut.new("openssl verify -CAfile #{root_ca} #{admin_cert}")
     verify_cmd.run_command
     if verify_cmd.exitstatus != 0
-      Chef::Log.warn("=" * 80)
-      Chef::Log.warn("CERTIFICATE CHAIN VALIDATION FAILED")
-      Chef::Log.warn("=" * 80)
-      Chef::Log.warn("The admin certificate is NOT signed by the root CA")
+      Chef::Log.warn('=' * 80)
+      Chef::Log.warn('CERTIFICATE CHAIN VALIDATION FAILED')
+      Chef::Log.warn('=' * 80)
+      Chef::Log.warn('The admin certificate is NOT signed by the root CA')
       Chef::Log.warn("Verification output: #{verify_cmd.stdout.strip} #{verify_cmd.stderr.strip}")
-      Chef::Log.warn("")
-      Chef::Log.warn("The admin.pem must be signed by the same CA in root-ca.pem")
-      Chef::Log.warn("Regenerate certificates using wazuh-certs-tool.sh to ensure consistency")
-      Chef::Log.warn("=" * 80)
+      Chef::Log.warn('')
+      Chef::Log.warn('The admin.pem must be signed by the same CA in root-ca.pem')
+      Chef::Log.warn('Regenerate certificates using wazuh-certs-tool.sh to ensure consistency')
+      Chef::Log.warn('=' * 80)
     else
-      Chef::Log.info("Admin certificate chain validation: OK")
+      Chef::Log.info('Admin certificate chain validation: OK')
     end
   end
   action :run
