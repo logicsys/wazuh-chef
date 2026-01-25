@@ -6,6 +6,23 @@
 
 certs_path = node['wazuh_indexer']['certs_path']
 
+# Warn if default password is not overridden
+log 'default_password_warning' do
+  message <<~WARN
+    ================================================================================
+    SECURITY WARNING: Default admin password is in use!
+    ================================================================================
+    The wazuh_indexer admin_password is set to the default value 'admin'.
+    This is insecure and should be changed in production environments.
+
+    Override the attribute in your role, environment, or wrapper cookbook:
+      node['wazuh_indexer']['admin_password'] = 'your-secure-password'
+    ================================================================================
+  WARN
+  level :warn
+  only_if { node['wazuh_indexer']['admin_password'] == 'admin' }
+end
+
 # Install wazuh-indexer package
 case node['platform']
 when 'debian', 'ubuntu'

@@ -4,6 +4,31 @@
 # Recipe:: kibana
 # Author:: Wazuh <info@wazuh.com>
 
+# Warn if default API password is not overridden
+log 'default_api_password_warning' do
+  message <<~WARN
+    ================================================================================
+    SECURITY WARNING: Default Wazuh API password is in use!
+    ================================================================================
+    The wazuh_api_credentials contains the default password 'wazuh'.
+    This is insecure and should be changed in production environments.
+
+    Override the attribute in your role, environment, or wrapper cookbook:
+      node['kibana']['wazuh_api_credentials'] = [
+        {
+          'id' => 'default',
+          'url' => 'https://localhost',
+          'port' => 55000,
+          'username' => 'wazuh',
+          'password' => 'your-secure-password'
+        }
+      ]
+    ================================================================================
+  WARN
+  level :warn
+  only_if { node['kibana']['wazuh_api_credentials'].any? { |cred| cred['password'] == 'wazuh' } }
+end
+
 # Install the Kibana package
 
 case node['platform']

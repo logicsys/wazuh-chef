@@ -6,6 +6,23 @@
 
 certs_path = node['wazuh_dashboard']['certs_path']
 
+# Warn if default password is not overridden
+log 'default_password_warning' do
+  message <<~WARN
+    ================================================================================
+    SECURITY WARNING: Default Wazuh API password is in use!
+    ================================================================================
+    The wazuh_dashboard wazuh_api password is set to the default value 'wazuh-wui'.
+    This is insecure and should be changed in production environments.
+
+    Override the attribute in your role, environment, or wrapper cookbook:
+      node['wazuh_dashboard']['wazuh_api']['password'] = 'your-secure-password'
+    ================================================================================
+  WARN
+  level :warn
+  only_if { node['wazuh_dashboard']['wazuh_api']['password'] == 'wazuh-wui' }
+end
+
 # Install wazuh-dashboard package
 case node['platform']
 when 'debian', 'ubuntu'
