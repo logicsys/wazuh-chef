@@ -9,6 +9,7 @@ chef_version     '>= 15.0'
 %w(redhat centos oracle).each do |el|
   supports el, '>= 6.0'
 end
+supports 'rocky', '>= 8.0'
 supports 'amazon', '>= 1.0'
 supports 'fedora', '>= 22.0'
 supports 'debian', '>= 7.0'

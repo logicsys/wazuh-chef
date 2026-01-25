@@ -30,7 +30,7 @@ class Chef
       def self.object_to_ossec(object)
         case object
         when Hash
-          object.each_key do |k|
+          object.keys.each do |k|
             if k == 'content!'
               object[:content!] = object_to_ossec(object.delete(k))
             else

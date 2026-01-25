@@ -24,7 +24,7 @@ when 'debian', 'ubuntu'
   apt_package 'wazuh-agent' do
     version "#{node['wazuh']['patch_version']}-1"
   end
-when 'redhat', 'centos', 'amazon', 'fedora', 'oracle'
+when 'redhat', 'centos', 'amazon', 'fedora', 'oracle', 'rocky'
   if node['platform_version'] >= '8'
     dnf_package 'wazuh-agent' do
       version "#{node['wazuh']['patch_version']}"
@@ -108,7 +108,7 @@ include_recipe 'wazuh_agent::common'
 template "#{node['ossec']['dir']}/etc/local_internal_options.conf" do
   source 'var/ossec/etc/agent_local_internal_options.conf'
   owner 'root'
-  group 'ossec'
+  group node['ossec']['group']
   action :create
 end
 

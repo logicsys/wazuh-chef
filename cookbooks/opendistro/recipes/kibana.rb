@@ -11,7 +11,7 @@ when 'debian', 'ubuntu'
   apt_package 'opendistroforelasticsearch-kibana' do
     version (node['odfe']['patch_version']).to_s
   end
-when 'redhat', 'centos', 'amazon', 'fedora', 'oracle'
+when 'redhat', 'centos', 'amazon', 'fedora', 'oracle', 'rocky'
   if node['platform_version'] >= '8'
     dnf_package 'opendistroforelasticsearch-kibana' do
       version (node['odfe']['patch_version']).to_s

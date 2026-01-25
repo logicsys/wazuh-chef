@@ -1,0 +1,78 @@
+# Wazuh Indexer configuration
+# Managed by Chef - DO NOT EDIT MANUALLY
+
+# Cluster
+cluster.name: <%= @cluster_name %>
+
+# Node
+node.name: <%= @node_name %>
+
+# Network
+network.host: <%= @network_host %>
+http.port: <%= @http_port %>
+transport.port: <%= @transport_port %>
+
+# Discovery
+<% if @single_node -%>
+discovery.type: single-node
+<% else -%>
+discovery.seed_hosts:
+<% @seed_hosts.each do |host| -%>
+  - <%= host %>
+<% end -%>
+cluster.initial_master_nodes:
+<% @initial_master_nodes.each do |node| -%>
+  - <%= node %>
+<% end -%>
+<% end -%>
+
+# Security plugin configuration
+plugins.security.ssl.transport.pemcert_filepath: /etc/wazuh-indexer/certs/indexer.pem
+plugins.security.ssl.transport.pemkey_filepath: /etc/wazuh-indexer/certs/indexer-key.pem
+plugins.security.ssl.transport.pemtrustedcas_filepath: /etc/wazuh-indexer/certs/root-ca.pem
+plugins.security.ssl.transport.enforce_hostname_verification: false
+plugins.security.ssl.http.enabled: true
+plugins.security.ssl.http.pemcert_filepath: /etc/wazuh-indexer/certs/indexer.pem
+plugins.security.ssl.http.pemkey_filepath: /etc/wazuh-indexer/certs/indexer-key.pem
+plugins.security.ssl.http.pemtrustedcas_filepath: /etc/wazuh-indexer/certs/root-ca.pem
+plugins.security.allow_default_init_securityindex: true
+plugins.security.authcz.admin_dn:
+<% @admin_dn.each do |dn| -%>
+  - "<%= dn %>"
+<% end -%>
+plugins.security.check_snapshot_restore_write_privileges: true
+plugins.security.enable_snapshot_restore_privilege: true
+plugins.security.nodes_dn:
+<% @nodes_dn.each do |dn| -%>
+  - "<%= dn %>"
+<% end -%>
+plugins.security.restapi.roles_enabled:
+  - "all_access"
+  - "security_rest_api_access"
+plugins.security.system_indices.enabled: true
+plugins.security.system_indices.indices:
+  - ".plugins-ml-agent"
+  - ".plugins-ml-config"
+  - ".plugins-ml-connector"
+  - ".plugins-ml-controller"
+  - ".plugins-ml-model"
+  - ".plugins-ml-model-group"
+  - ".plugins-ml-task"
+  - ".opendistro-alerting-config"
+  - ".opendistro-alerting-alert*"
+  - ".opendistro-anomaly-results*"
+  - ".opendistro-anomaly-detector*"
+  - ".opendistro-anomaly-checkpoints"
+  - ".opendistro-anomaly-detection-state"
+  - ".opendistro-reports-*"
+  - ".opensearch-notifications-*"
+  - ".opensearch-notebooks"
+  - ".opensearch-observability"
+  - ".ql-datasources"
+  - ".opendistro-asynchronous-search-response*"
+  - ".replication-metadata-store"
+  - ".opensearch-knn-models"
+  - ".geospatial-ip2geo-data*"
+
+# Compatibility
+compatibility.override_main_response_version: true

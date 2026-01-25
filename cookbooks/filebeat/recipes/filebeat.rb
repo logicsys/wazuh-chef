@@ -9,7 +9,7 @@ when 'debian', 'ubuntu'
   apt_package 'filebeat' do
     version "#{node['elk']['patch_version']}"
   end
-when 'redhat', 'centos', 'amazon', 'fedora', 'oracle'
+when 'redhat', 'centos', 'amazon', 'fedora', 'oracle', 'rocky'
   if node['platform_version'] >= '8'
     dnf_package 'filebeat' do
       version "#{node['elk']['patch_version']}"

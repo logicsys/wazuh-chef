@@ -1,0 +1,39 @@
+## JVM configuration for Wazuh Indexer
+## Managed by Chef - DO NOT EDIT MANUALLY
+
+################################################################
+## IMPORTANT: JVM heap size
+################################################################
+-Xms<%= @memory %>
+-Xmx<%= @memory %>
+
+################################################################
+## Expert settings
+################################################################
+
+## GC configuration
+8-10:-XX:+UseConcMarkSweepGC
+8-10:-XX:CMSInitiatingOccupancyFraction=75
+8-10:-XX:+UseCMSInitiatingOccupancyOnly
+
+## G1GC Configuration
+11-:-XX:+UseG1GC
+11-:-XX:G1ReservePercent=25
+11-:-XX:InitiatingHeapOccupancyPercent=30
+
+## DNS cache policy
+-Des.networkaddress.cache.ttl=60
+-Des.networkaddress.cache.negative.ttl=10
+
+## JVM temporary directory
+-Djava.io.tmpdir=${OPENSEARCH_TMPDIR}
+
+## heap dumps
+-XX:+HeapDumpOnOutOfMemoryError
+-XX:HeapDumpPath=/var/lib/wazuh-indexer
+
+## specify an alternative path for JVM fatal error logs
+-XX:ErrorFile=/var/log/wazuh-indexer/hs_err_pid%p.log
+
+## JDK 9+ GC logging
+9-:-Xlog:gc*,gc+age=trace,safepoint:file=/var/log/wazuh-indexer/gc.log:utctime,pid,tags:filecount=32,filesize=64m

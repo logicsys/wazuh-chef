@@ -1,17 +1,13 @@
-# USE THIS FILE AS A TEMPLATE. UNCOMMENT LINES TO APPLY CUSTOM CONFIGURATION
-
-host: <%= @host %>
+host:
+  - <%= @host %>
 port: <%= @port %>
 
 # Logging configuration
-# Values for API log level: disabled, info, warning, error, debug, debug2 (each level includes the previous level).
-# Values for API log format: 'plain', 'json', 'plain,json', 'json,plain'
 logs:
-  level: "info"
-  path: "logs/api.log"
-  format: "plain"
+  level: info
+  format: plain
 
-# Cross-origin resource sharing: https://github.com/aio-libs/aiohttp-cors#usage
+# Cross-origin resource sharing
 cors:
   enabled: no
   source_route: "*"
@@ -19,31 +15,14 @@ cors:
   allow_headers: "*"
   allow_credentials: no
 
-# Cache (time in seconds)
-cache:
-  enabled: yes
-  time: 0.750
-
 # Access parameters
 access:
   max_login_attempts: 50
   block_time: 300
   max_request_per_minute: 300
 
-# Force the use of authd when adding and removing agents. Values: yes, no
-use_only_authd: no
-
-# Drop privileges (Run as ossec user)
+# Drop privileges (Run as wazuh user)
 drop_privileges: yes
 
 # Enable features under development
 experimental_features: no
-
-# Enable remote commands
-remote_commands:
-  localfile:
-    enabled: yes
-    exceptions: []
-  wodle_command:
-    enabled: yes
-    exceptions: [] 

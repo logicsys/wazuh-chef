@@ -23,7 +23,7 @@ when 'debian', 'ubuntu'
 
   # Update the package information
   apt_update
-when 'redhat', 'centos', 'amazon', 'fedora', 'oracle'
+when 'redhat', 'centos', 'amazon', 'fedora', 'oracle', 'rocky'
   yum_repository 'wazuh' do
     description 'Opendistroforelasticseach Yum'
     baseurl "https://packages.wazuh.com/#{node['wazuh']['major_version']}/yum/"

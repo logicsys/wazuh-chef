@@ -6,7 +6,7 @@ transport:
   name: ssh
 
 provisioner:
-  name: chez-zero
+  name: chef-zero
   chef_license: accept
 
 verifier:
@@ -14,16 +14,26 @@ verifier:
 
 platforms:
   - name: amazonlinux-2
-  - name: debian-9
-  - name: debian-10
-  - name: centos-7
-  - name: centos-8
-  - name: ubuntu-18.04
+  - name: debian-11
+  - name: debian-12
+  - name: rockylinux-8
+  - name: rockylinux-9
   - name: ubuntu-20.04
-  - name: opensuse-leap-15
+  - name: ubuntu-22.04
   - name: fedora-latest
-    
+
 suites:
+  - name: wazuh-single-node
+    run_list:
+      - recipe[wazuh_indexer::default]
+      - recipe[wazuh_manager::default]
+      - recipe[wazuh_dashboard::default]
+    verifier:
+      inspec_tests:
+        - path: ../cookbooks/wazuh_indexer/test/integration/wazuh_indexer
+        - path: ../cookbooks/wazuh_manager/test/integration/wazuh_manager
+        - path: ../cookbooks/wazuh_dashboard/test/integration/wazuh_dashboard
+
   - name: wazuh_agent
     run_list:
       - recipe[wazuh_agent::default]
@@ -31,38 +41,23 @@ suites:
       inspec_tests:
         - path: ../cookbooks/wazuh_agent/test/integration/wazuh_agent
 
-  - name: wazuh_server
+  - name: wazuh_indexer
+    run_list:
+      - recipe[wazuh_indexer::default]
+    verifier:
+      inspec_tests:
+        - path: ../cookbooks/wazuh_indexer/test/integration/wazuh_indexer
+
+  - name: wazuh_manager
     run_list:
       - recipe[wazuh_manager::default]
-      - recipe[filebeat::default]
     verifier:
       inspec_tests:
-        - name: wazuh-manager tests 
-          path: ../cookbooks/wazuh_manager/test/integration/wazuh_manager
-        - name: filebeat tests
-          path: ../cookbooks/filebeat/test/integration/filebeat
+        - path: ../cookbooks/wazuh_manager/test/integration/wazuh_manager
 
-  - name: wazuh_server_oss
+  - name: wazuh_dashboard
     run_list:
-      - recipe[wazuh_manager::default]
-      - recipe[filebeat-oss::default]
+      - recipe[wazuh_dashboard::default]
     verifier:
       inspec_tests:
-        - name: wazuh-manager tests 
-          path: ../cookbooks/wazuh_manager/test/integration/wazuh_manager
-        - name: filebeat-oss tests
-          path: ../cookbooks/filebeat-oss/test/integration/filebeat-oss
-
-  - name: opendistro
-    run_list:
-      - recipe[opendistro::default]
-    verifier:
-      inspec_tests:
-        - path: ../cookbooks/opendistro/test/integration/opendistro
-  
-  - name: elastic-stack
-    run_list:
-      - recipe[elastic-stack::default]
-    verifier:
-      inspec_tests:
-        - path: ../cookbooks/elastic-stack/test/integration/elastic-stack
+        - path: ../cookbooks/wazuh_dashboard/test/integration/wazuh_dashboard

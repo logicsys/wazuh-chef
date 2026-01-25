@@ -21,18 +21,22 @@ when 'debian', 'ubuntu'
   apt_package %w[apt-transport-https software-properties-common libcap2-bin]
 
   # Add the repository for Java Development Kit (JDK)
-  case platform_family?
+  # Note: Debian 11+ and Ubuntu 20.04+ have openjdk-11 in main repos
+  case node['platform']
   when 'debian'
-    bash 'add backports.list' do
-      code <<-EOH
-            echo 'deb http://deb.debian.org/debian stretch-backports main' > /etc/apt/sources.list.d/backports.list
-      EOH
+    # Only add backports for older Debian versions (< 11)
+    if node['platform_version'].to_i < 11
+      bash 'add backports.list' do
+        code <<-EOH
+            echo 'deb http://deb.debian.org/debian #{node['lsb']['codename']}-backports main' > /etc/apt/sources.list.d/backports.list
+        EOH
+      end
     end
   when 'ubuntu'
     execute 'add apt repository' do
       command 'add-apt-repository ppa:openjdk-r/ppa'
+      not_if { node['platform_version'].to_f >= 20.04 }
     end
-  else 'Error: cannot install JDK dependancie'
   end
 
   # Update repository data
@@ -44,7 +48,7 @@ when 'debian', 'ubuntu'
   end
 
   apt_package 'openjdk-11-jdk'
-when 'redhat', 'centos', 'amazon', 'fedora', 'oracle'
+when 'redhat', 'centos', 'amazon', 'fedora', 'oracle', 'rocky'
   # Install all the necessary packages for the installation
   execute 'export JAVA_HOME' do
     command  'export JAVA_HOME=/usr/'

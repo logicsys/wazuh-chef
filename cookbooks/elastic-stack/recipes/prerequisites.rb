@@ -13,7 +13,7 @@ when 'debian', 'ubuntu'
   apt_package 'apt-transport-https' do
     action :install
   end
-when 'redhat', 'centos', 'amazon', 'fedora', 'oracle'
+when 'redhat', 'centos', 'amazon', 'fedora', 'oracle', 'rocky'
   if node['platform_version'] >= '8'
     dnf_package 'curl' do
       action :install

@@ -24,55 +24,50 @@ platforms:
   # - name: fedora-latest
 
 suites:
-  # - name: odfe-single-node
-  #   excludes:
-  #     - debian-11
-  #     - debian-12
-  #     - rockylinux-8
-  #     - rockylinux-9
-  #   run_list:
-  #     - recipe[opendistro::default]
-  #     - recipe[wazuh_manager::default]
-  #     - recipe[filebeat-oss::default]
-  #   driver:
-  #     hostname: odfe-single-node
-  #   verifier:
-  #     inspec_tests:
-  #       - name: odfe test
-  #         path: ./cookbooks/opendistro/test/integration/opendistro
-  #       - name: wazuh-manager tests
-  #         path: ./cookbooks/wazuh_manager/test/integration/wazuh_manager
-  #       - name: filebeat tests
-  #         path: ./cookbooks/filebeat-oss/test/integration/filebeat-oss
-  #   driver:
-  #     customize:
-  #       memory: 4096
-  #       cpus: 2
-
-  - name: elk-single-node
+  - name: wazuh-single-node
     excludes:
       - debian-11
       - debian-12
       # - rockylinux-8
       - rockylinux-9
     run_list:
-      - recipe[elastic-stack::default]
+      - recipe[test_certs::default]
+      - recipe[wazuh_indexer::default]
       - recipe[wazuh_manager::default]
-      - recipe[filebeat::default]
+      - recipe[wazuh_dashboard::default]
     driver:
-      hostname: elk-single-node
-    verifier:
-      inspec_tests:
-        - name: ELK test
-          path: ./cookbooks/elastic-stack/test/integration/elastic-stack
-        - name: wazuh-manager tests
-          path: ./cookbooks/wazuh_manager/test/integration/wazuh_manager
-        - name: filebeat tests
-          path: ./cookbooks/filebeat/test/integration/filebeat
-    driver:
+      hostname: wazuh-single-node
+      network:
+        - ["private_network", {ip: "192.168.56.10"}]
       customize:
         memory: 4096
         cpus: 2
+    verifier:
+      inspec_tests:
+        - name: wazuh-indexer tests
+          path: ./cookbooks/wazuh_indexer/test/integration/wazuh_indexer
+        - name: wazuh-manager tests
+          path: ./cookbooks/wazuh_manager/test/integration/wazuh_manager
+        - name: wazuh-dashboard tests
+          path: ./cookbooks/wazuh_dashboard/test/integration/wazuh_dashboard
+
+  # - name: wazuh-indexer
+  #   excludes:
+  #     - debian-11
+  #     - debian-12
+  #     # - rockylinux-8
+  #     - rockylinux-9
+  #   run_list:
+  #     - recipe[wazuh_indexer::default]
+  #   driver:
+  #     hostname: wazuh-indexer
+  #     customize:
+  #       memory: 2048
+  #       cpus: 2
+  #   verifier:
+  #     inspec_tests:
+  #       - name: wazuh-indexer tests
+  #         path: ./cookbooks/wazuh_indexer/test/integration/wazuh_indexer
 
   # - name: wazuh-manager
   #   run_list:
@@ -82,24 +77,67 @@ suites:
   #     customize:
   #       memory: 1024
   #       cpus: 1
+  #   verifier:
+  #     inspec_tests:
+  #       - name: wazuh-manager tests
+  #         path: ./cookbooks/wazuh_manager/test/integration/wazuh_manager
+
+  # - name: wazuh-dashboard
+  #   run_list:
+  #     - recipe[wazuh_dashboard::default]
+  #   driver:
+  #     hostname: wazuh-dashboard
+  #     customize:
+  #       memory: 1024
+  #       cpus: 1
+  #   verifier:
+  #     inspec_tests:
+  #       - name: wazuh-dashboard tests
+  #         path: ./cookbooks/wazuh_dashboard/test/integration/wazuh_dashboard
 
   - name: wazuh-agent
     run_list:
       - recipe[wazuh_agent::default]
     driver:
       hostname: wazuh-agent
+      network:
+        - ["private_network", {ip: "192.168.56.11"}]
       customize:
         memory: 512
         cpus: 1
     attributes:
       ossec:
-        address: wazuh-manager
+        address: 192.168.56.10
     verifier:
       inspec_tests:
         - name: manager and agent connection test
           path: cookbooks/wazuh_agent/test/integration/wazuh_agent/manager_agent_test.rb
       inputs:
-        manager_ip: wazuh-manager
+        manager_ip: 192.168.56.10
         manager_port: 1514
         protocol: tcp
 
+  # DEPRECATED SUITES - kept for backwards compatibility testing only
+  # - name: elk-single-node
+  #   excludes:
+  #     - debian-11
+  #     - debian-12
+  #     - rockylinux-9
+  #   run_list:
+  #     - recipe[elastic-stack::default]
+  #     - recipe[wazuh_manager::default]
+  #     - recipe[filebeat::default]
+  #   driver:
+  #     hostname: elk-single-node
+  #   verifier:
+  #     inspec_tests:
+  #       - name: ELK test
+  #         path: ./cookbooks/elastic-stack/test/integration/elastic-stack
+  #       - name: wazuh-manager tests
+  #         path: ./cookbooks/wazuh_manager/test/integration/wazuh_manager
+  #       - name: filebeat tests
+  #         path: ./cookbooks/filebeat/test/integration/filebeat
+  #   driver:
+  #     customize:
+  #       memory: 4096
+  #       cpus: 2

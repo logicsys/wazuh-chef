@@ -14,7 +14,7 @@ when 'debian', 'ubuntu'
   apt_package 'opendistroforelasticsearch' do
     version "#{node['odfe']['patch_version']}-1"
   end
-when 'redhat', 'centos', 'amazon', 'fedora', 'oracle'
+when 'redhat', 'centos', 'amazon', 'fedora', 'oracle', 'rocky'
   if node['platform_version'] >= '8'
     dnf_package 'elasticsearch-oss' do
       version (node['elk']['patch_version']).to_s

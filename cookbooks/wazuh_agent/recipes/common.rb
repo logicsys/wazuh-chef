@@ -24,7 +24,7 @@ end
 
 file "#{node['ossec']['dir']}/etc/ossec.conf" do
   owner 'root'
-  group 'ossec'
+  group node['ossec']['group']
   mode '0440'
   manage_symlink_source true
   notifies :restart, 'service[wazuh]'
@@ -37,7 +37,7 @@ end
 
 file "#{node['ossec']['dir']}/etc/shared/agent.conf" do
   owner 'root'
-  group 'ossec'
+  group node['ossec']['group']
   mode '0440'
   notifies :restart, 'service[wazuh]'
   action :create

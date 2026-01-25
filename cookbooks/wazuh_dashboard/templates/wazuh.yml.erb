@@ -1,0 +1,10 @@
+# Wazuh Dashboard - Wazuh API configuration
+# Managed by Chef - DO NOT EDIT MANUALLY
+
+hosts:
+  - default:
+      url: <%= @api_url %>
+      port: <%= @api_port %>
+      username: <%= @api_username %>
+      password: <%= @api_password %>
+      run_as: false

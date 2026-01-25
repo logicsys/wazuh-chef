@@ -10,8 +10,8 @@ default['elk']['patch_version'] = '7.11.2'
 
 # Wazuh
 default['wazuh']['major_version'] = '4.x'
-default['wazuh']['minor_version'] = '4.4'
-default['wazuh']['patch_version'] = '4.4.0'
+default['wazuh']['minor_version'] = '4.14'
+default['wazuh']['patch_version'] = '4.14.2'
 
 # Kibana
-default['wazuh']['kibana_plugin_version'] = '4.4.0_7.10.2'
+default['wazuh']['kibana_plugin_version'] = '4.14.2_7.10.2'

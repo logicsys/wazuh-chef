@@ -22,3 +22,9 @@ describe port(1514) do
   it { should be_listening }
   its('processes') { should include 'wazuh-remoted' }
 end
+
+# Security test: Verify default admin/admin credentials do not work against Wazuh API
+describe command("curl -s -k -u admin:admin -X GET https://127.0.0.1:55000/security/user/authenticate") do
+  its('stdout') { should_not match(/"token"/) }
+  its('stdout') { should match(/Invalid credentials|Unauthorized|401/) }
+end

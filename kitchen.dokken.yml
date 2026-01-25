@@ -23,36 +23,29 @@ platforms:
       image: dokken/amazonlinux-2
       pid_one_command: /usr/lib/systemd/systemd
 
-  - name: debian-9
+  - name: debian-11
     driver:
-      image: dokken/debian-9
+      image: dokken/debian-11
       pid_one_command: /bin/systemd
       intermediate_instructions:
         - RUN /usr/bin/apt-get update
 
-  - name: debian-10
+  - name: debian-12
     driver:
-      image: dokken/debian-10
+      image: dokken/debian-12
       pid_one_command: /bin/systemd
       intermediate_instructions:
         - RUN /usr/bin/apt-get update
 
-  - name: centos-7
+  - name: rockylinux-8
     driver:
-      image: dokken/centos-7
+      image: dokken/rockylinux-8
       pid_one_command: /usr/lib/systemd/systemd
 
-  - name: centos-8
+  - name: rockylinux-9
     driver:
-      image: dokken/centos-8
+      image: dokken/rockylinux-9
       pid_one_command: /usr/lib/systemd/systemd
-
-  - name: ubuntu-18.04
-    driver:
-      image: dokken/ubuntu-18.04
-      pid_one_command: /bin/systemd
-      intermediate_instructions:
-        - RUN /usr/bin/apt-get update
 
   - name: ubuntu-20.04
     driver:
@@ -61,10 +54,12 @@ platforms:
       intermediate_instructions:
         - RUN /usr/bin/apt-get update
 
-  - name: opensuse-leap-15
+  - name: ubuntu-22.04
     driver:
-      image: dokken/opensuse-leap-15
+      image: dokken/ubuntu-22.04
       pid_one_command: /bin/systemd
+      intermediate_instructions:
+        - RUN /usr/bin/apt-get update
 
   - name: fedora-latest
     driver:
@@ -72,63 +67,57 @@ platforms:
       pid_one_command: /usr/lib/systemd/systemd
 
 suites:
-  - name: odfe-single-node
+  - name: wazuh-single-node
     run_list:
-      - recipe[opendistro::default]
+      - recipe[wazuh_indexer::default]
       - recipe[wazuh_manager::default]
-      - recipe[filebeat-oss::default]
+      - recipe[wazuh_dashboard::default]
     driver:
-      hostname: odfe-single-node
+      hostname: wazuh-single-node
     verifier:
       inspec_tests:
-        - name: odfe test
-          path: ./cookbooks/opendistro/test/integration/opendistro
+        - name: wazuh-indexer tests
+          path: ./cookbooks/wazuh_indexer/test/integration/wazuh_indexer
         - name: wazuh-manager tests
           path: ./cookbooks/wazuh_manager/test/integration/wazuh_manager
-        - name: filebeat tests
-          path: ./cookbooks/filebeat-oss/test/integration/filebeat-oss
-    driver:
-      customize:
-        memory: 4096
-        cpus: 2
+        - name: wazuh-dashboard tests
+          path: ./cookbooks/wazuh_dashboard/test/integration/wazuh_dashboard
 
-  - name: elk-single-node
+  - name: wazuh-indexer
     run_list:
-      - recipe[elastic-stack::default]
-      - recipe[wazuh_manager::default]
-      - recipe[filebeat::default]
+      - recipe[wazuh_indexer::default]
     driver:
-      hostname: elk-single-node
+      hostname: wazuh-indexer
     verifier:
       inspec_tests:
-        - name: ELK test
-          path: ./cookbooks/elastic-stack/test/integration/elastic-stack
-        - name: wazuh-manager tests
-          path: ./cookbooks/wazuh_manager/test/integration/wazuh_manager
-        - name: filebeat tests
-          path: ./cookbooks/filebeat/test/integration/filebeat
-    driver:
-      customize:
-        memory: 4096
-        cpus: 2
+        - name: wazuh-indexer tests
+          path: ./cookbooks/wazuh_indexer/test/integration/wazuh_indexer
 
   - name: wazuh-manager
     run_list:
       - recipe[wazuh_manager::default]
     driver:
       hostname: wazuh-manager
-      customize:
-        memory: 1024
-        cpus: 1
+    verifier:
+      inspec_tests:
+        - name: wazuh-manager tests
+          path: ./cookbooks/wazuh_manager/test/integration/wazuh_manager
+
+  - name: wazuh-dashboard
+    run_list:
+      - recipe[wazuh_dashboard::default]
+    driver:
+      hostname: wazuh-dashboard
+    verifier:
+      inspec_tests:
+        - name: wazuh-dashboard tests
+          path: ./cookbooks/wazuh_dashboard/test/integration/wazuh_dashboard
 
   - name: wazuh-agent
     run_list:
       - recipe[wazuh_agent::default]
     driver:
       hostname: wazuh-agent
-      customize:
-        memory: 512
-        cpus: 1
     attributes:
       ossec:
         address: wazuh-manager

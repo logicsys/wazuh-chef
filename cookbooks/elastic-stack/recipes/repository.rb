@@ -22,7 +22,7 @@ when 'ubuntu', 'debian'
   end
 
   apt_update
-when 'redhat', 'centos', 'amazon', 'fedora', 'oracle'
+when 'redhat', 'centos', 'amazon', 'fedora', 'oracle', 'rocky'
   yum_repository 'elastic' do
     description "Elasticsearch repository for #{node['elk']['major_version']} packages"
     gpgcheck true

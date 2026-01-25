@@ -56,7 +56,7 @@ when 'ubuntu', 'debian'
         },
     },
   ]
-when 'redhat', 'centos', 'amazon', 'fedora', 'oracle'
+when 'redhat', 'centos', 'amazon', 'fedora', 'oracle', 'rocky'
   default['ossec']['conf']['localfile'] = [
     {
       'log_format' => 'command',

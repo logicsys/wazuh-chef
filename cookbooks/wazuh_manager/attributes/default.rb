@@ -4,5 +4,6 @@
 
 # general settings
 default['ossec']['dir'] = '/var/ossec'
+default['ossec']['group'] = 'wazuh'
 default['ossec']['address'] = nil
 default['ossec']['ignore_failure'] = true
