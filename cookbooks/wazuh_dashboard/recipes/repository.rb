@@ -6,7 +6,6 @@
 
 case node['platform']
 when 'debian', 'ubuntu'
-  # Import GPG key using modern method
   execute 'import_wazuh_gpg_key' do
     command 'curl -s https://packages.wazuh.com/key/GPG-KEY-WAZUH | gpg --no-default-keyring --keyring gnupg-ring:/usr/share/keyrings/wazuh.gpg --import && chmod 644 /usr/share/keyrings/wazuh.gpg'
     not_if { ::File.exist?('/usr/share/keyrings/wazuh.gpg') }
