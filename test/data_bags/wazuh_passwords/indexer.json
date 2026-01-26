@@ -1,0 +1,5 @@
+{
+  "id": "indexer",
+  "admin": "TestAdminPassword123!",
+  "kibanaserver": "TestKibanaPassword123!"
+}

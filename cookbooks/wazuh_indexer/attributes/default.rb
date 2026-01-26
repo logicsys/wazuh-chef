@@ -88,6 +88,19 @@ default['wazuh_indexer']['admin_password'] = 'admin'
 # Enable/disable automatic password change
 default['wazuh_indexer']['passwords']['change_defaults'] = false
 
+# Data bag configuration for passwords (optional)
+# If configured, passwords will be read from the data bag instead of being generated
+# Expected data bag item structure:
+#   {
+#     "id": "indexer",
+#     "admin": "your-admin-password",
+#     "kibanaserver": "your-kibanaserver-password"
+#   }
+default['wazuh_indexer']['passwords']['data_bag_name'] = nil
+default['wazuh_indexer']['passwords']['data_bag_item'] = nil
+# Set to true to use encrypted data bag
+default['wazuh_indexer']['passwords']['data_bag_encrypted'] = false
+
 # Where to save generated passwords (set save_to_file to false for production)
 default['wazuh_indexer']['passwords']['save_to_file'] = true
 default['wazuh_indexer']['passwords']['output_file'] = '/root/wazuh-passwords.txt'

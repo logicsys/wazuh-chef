@@ -91,6 +91,64 @@ directory node['wazuh_dashboard']['package_path'] do
   action :create
 end
 
+# Set up OpenSearch credentials in keystore before starting dashboard
+# This ensures the dashboard can connect to the indexer on first start
+ruby_block 'setup_dashboard_credentials_before_start' do
+  block do
+    require 'json'
+
+    package_path = node['wazuh_dashboard']['package_path']
+    keystore_path = "#{package_path}/data/opensearch-dashboards.keystore"
+
+    # Get kibanaserver password from run_state or passwords file
+    kibana_password = nil
+
+    if node.run_state['wazuh_passwords'] && node.run_state['wazuh_passwords']['kibanaserver']
+      kibana_password = node.run_state['wazuh_passwords']['kibanaserver']
+      Chef::Log.info('Using kibanaserver password from run_state')
+    else
+      passwords_file = node['wazuh_dashboard']['indexer_passwords_file'] || '/root/wazuh-passwords.txt'
+      if ::File.exist?(passwords_file)
+        begin
+          data = JSON.parse(::File.read(passwords_file))
+          kibana_password = data['passwords']['kibanaserver'] if data['passwords']
+          Chef::Log.info("Using kibanaserver password from #{passwords_file}")
+        rescue JSON::ParserError
+          Chef::Log.warn('Could not parse passwords file')
+        end
+      end
+    end
+
+    if kibana_password
+      # Create keystore if it doesn't exist (use yes to auto-confirm any prompts)
+      unless ::File.exist?(keystore_path)
+        system("yes | #{package_path}/bin/opensearch-dashboards-keystore create --allow-root")
+      end
+
+      # Remove and re-add credentials
+      system("#{package_path}/bin/opensearch-dashboards-keystore remove opensearch.username --allow-root 2>/dev/null")
+      system("#{package_path}/bin/opensearch-dashboards-keystore remove opensearch.password --allow-root 2>/dev/null")
+      system("echo 'kibanaserver' | #{package_path}/bin/opensearch-dashboards-keystore add opensearch.username --stdin --allow-root")
+      system("echo '#{kibana_password}' | #{package_path}/bin/opensearch-dashboards-keystore add opensearch.password --stdin --allow-root")
+
+      # Set permissions
+      if ::File.exist?(keystore_path)
+        ::File.chown(
+          Etc.getpwnam('wazuh-dashboard').uid,
+          Etc.getgrnam('wazuh-dashboard').gid,
+          keystore_path
+        )
+        ::File.chmod(0600, keystore_path)
+      end
+      Chef::Log.info('Dashboard keystore configured with kibanaserver credentials')
+    else
+      Chef::Log.info('No kibanaserver password available - dashboard will use defaults')
+    end
+  end
+  action :run
+  only_if { ::File.exist?("#{certs_path}/dashboard.pem") }
+end
+
 # Enable and start service (only if certificates are present)
 service 'wazuh-dashboard' do
   supports status: true, restart: true, reload: true

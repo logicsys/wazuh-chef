@@ -11,6 +11,7 @@ transport:
 provisioner:
   name: dokken
   chef_license: accept
+  data_bags_path: test/data_bags
   client_rb:
     file_atomic_update: false
 
@@ -69,17 +70,34 @@ platforms:
 suites:
   - name: wazuh-single-node
     run_list:
+      - recipe[test_certs::default]
       - recipe[wazuh_indexer::default]
+      - recipe[wazuh_indexer::passwords]
       - recipe[wazuh_manager::default]
+      - recipe[wazuh_manager::passwords]
+      - recipe[filebeat-oss::default]
+      - recipe[filebeat-oss::passwords]
       - recipe[wazuh_dashboard::default]
+      - recipe[wazuh_dashboard::passwords]
     driver:
       hostname: wazuh-single-node
+    attributes:
+      wazuh_indexer:
+        passwords:
+          change_defaults: true
+          # Load passwords from data bag (comment out to use auto-generated)
+          data_bag_name: wazuh_passwords
+          data_bag_item: indexer
+          # Passwords are saved to /root/wazuh-passwords.txt as JSON
+          # and propagated via run_state (same converge) or file (separate converges)
     verifier:
       inspec_tests:
         - name: wazuh-indexer tests
           path: ./cookbooks/wazuh_indexer/test/integration/wazuh_indexer
         - name: wazuh-manager tests
           path: ./cookbooks/wazuh_manager/test/integration/wazuh_manager
+        - name: filebeat-oss tests
+          path: ./cookbooks/filebeat-oss/test/integration/filebeat-oss
         - name: wazuh-dashboard tests
           path: ./cookbooks/wazuh_dashboard/test/integration/wazuh_dashboard
 

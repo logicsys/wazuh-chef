@@ -119,12 +119,12 @@ if certs_present
   end
 
   # Test that indexer is responding to API calls
-  describe command('curl -s -k -u admin:admin https://127.0.0.1:9200/ -o /dev/null -w "%{http_code}"') do
+  describe command('curl -s -k -u admin:TestAdminPassword123! https://127.0.0.1:9200/ -o /dev/null -w "%{http_code}"') do
     its('stdout') { should match(/200|401/) }
   end
 
   # Test that wazuh template exists in indexer
-  describe command('curl -s -k -u admin:admin https://127.0.0.1:9200/_cat/templates/wazuh') do
+  describe command('curl -s -k -u admin:TestAdminPassword123! https://127.0.0.1:9200/_cat/templates/wazuh') do
     its('stdout') { should match(/wazuh/) }
   end
 else
