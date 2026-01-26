@@ -25,6 +25,12 @@ describe file('/etc/wazuh-indexer/opensearch.yml') do
   its('mode') { should cmp '0660' }
   its('owner') { should eq 'wazuh-indexer' }
   its('group') { should eq 'wazuh-indexer' }
+  # Verify required configuration settings
+  its('content') { should match(/path\.data: \/var\/lib\/wazuh-indexer/) }
+  its('content') { should match(/path\.logs: \/var\/log\/wazuh-indexer/) }
+  its('content') { should match(/node\.max_local_storage_nodes: 3/) }
+  its('content') { should match(/cluster\.routing\.allocation\.disk\.threshold_enabled: false/) }
+  its('content') { should match(/compatibility\.override_main_response_version: true/) }
 end
 
 describe file('/etc/wazuh-indexer/jvm.options') do
@@ -100,6 +106,26 @@ if certs_present
     it { should exist }
     its('mode') { should cmp '0440' }
     its('owner') { should eq 'wazuh-indexer' }
+  end
+
+  # Security initialization marker
+  describe file('/var/lib/wazuh-indexer/.security_initialized') do
+    it { should exist }
+  end
+
+  # Wazuh template injection marker
+  describe file('/var/lib/wazuh-indexer/.template_injected') do
+    it { should exist }
+  end
+
+  # Test that indexer is responding to API calls
+  describe command('curl -s -k -u admin:admin https://127.0.0.1:9200/ -o /dev/null -w "%{http_code}"') do
+    its('stdout') { should match(/200|401/) }
+  end
+
+  # Test that wazuh template exists in indexer
+  describe command('curl -s -k -u admin:admin https://127.0.0.1:9200/_cat/templates/wazuh') do
+    its('stdout') { should match(/wazuh/) }
   end
 else
   # When certificates are not present, service should not be running

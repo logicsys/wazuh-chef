@@ -34,6 +34,7 @@ suites:
       - recipe[test_certs::default]
       - recipe[wazuh_indexer::default]
       - recipe[wazuh_manager::default]
+      - recipe[filebeat-oss::default]
       - recipe[wazuh_dashboard::default]
     driver:
       hostname: wazuh-single-node
@@ -48,6 +49,8 @@ suites:
           path: ./cookbooks/wazuh_indexer/test/integration/wazuh_indexer
         - name: wazuh-manager tests
           path: ./cookbooks/wazuh_manager/test/integration/wazuh_manager
+        - name: filebeat-oss tests
+          path: ./cookbooks/filebeat-oss/test/integration/filebeat-oss
         - name: wazuh-dashboard tests
           path: ./cookbooks/wazuh_dashboard/test/integration/wazuh_dashboard
 
