@@ -12,6 +12,14 @@ network.host: <%= @network_host %>
 http.port: <%= @http_port %>
 transport.port: <%= @transport_port %>
 
+# Paths
+path.data: /var/lib/wazuh-indexer
+path.logs: /var/log/wazuh-indexer
+
+# Cluster settings
+node.max_local_storage_nodes: 3
+cluster.routing.allocation.disk.threshold_enabled: false
+
 # Discovery
 <% if @single_node -%>
 discovery.type: single-node

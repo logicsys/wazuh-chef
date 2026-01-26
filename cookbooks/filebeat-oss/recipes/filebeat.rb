@@ -58,8 +58,9 @@ template "#{node['filebeat']['config_path']}/filebeat.yml" do
 end
 
 # Download the alerts template for Elasticsearch
+# Use the full version tag (v4.14.2) for the GitHub raw URL
 remote_file "#{node['filebeat']['config_path']}/#{node['filebeat']['alerts_template']}" do
-  source "https://raw.githubusercontent.com/wazuh/wazuh/#{node['wazuh']['minor_version']}/extensions/elasticsearch/#{node['elk']['major_version']}/#{node['filebeat']['alerts_template']}"
+  source "https://raw.githubusercontent.com/wazuh/wazuh/v#{node['wazuh']['patch_version']}/extensions/elasticsearch/#{node['elk']['major_version']}/#{node['filebeat']['alerts_template']}"
   owner 'root'
   group 'root'
   mode '0644'
@@ -82,34 +83,75 @@ end
 
 ruby_block 'Copy certificate files' do
   block do
-    source_path = nil
-    # Check for Wazuh Indexer certs first
-    if ::Dir.exist?(node['wazuh_indexer']['certs_path'])
-      source_path = node['wazuh_indexer']['certs_path']
-    # Fallback to legacy Elasticsearch path
-    elsif ::Dir.exist?(node['elastic']['certs_path'])
-      source_path = node['elastic']['certs_path']
+    dest_path = node['filebeat']['certs_path']
+    certs_copied = false
+
+    # Define possible certificate source paths in order of preference
+    # 1. Wazuh Manager certs (for single-node where manager and filebeat are on same host)
+    # 2. Wazuh Indexer certs
+    # 3. Legacy Elasticsearch path
+    source_paths = [
+      '/var/ossec/etc/certs',                    # Wazuh Manager certs path
+      node['wazuh_indexer']['certs_path'],       # Wazuh Indexer certs path
+      node['elastic']['certs_path'],             # Legacy Elasticsearch path
+    ]
+
+    # Define possible certificate name patterns
+    # The install script may name certs after the server node (e.g., wazuh-server.pem)
+    # or use standard names (filebeat.pem)
+    hostname = node['hostname']
+    cert_patterns = [
+      { cert: 'filebeat.pem', key: 'filebeat-key.pem' },
+      { cert: "#{hostname}.pem", key: "#{hostname}-key.pem" },
+      { cert: 'wazuh-server.pem', key: 'wazuh-server-key.pem' },
+      { cert: 'server.pem', key: 'server-key.pem' },
+    ]
+
+    source_paths.each do |source_path|
+      next unless ::Dir.exist?(source_path)
+
+      Chef::Log.info("Checking certificate source: #{source_path}")
+
+      # Try each certificate naming pattern
+      cert_patterns.each do |pattern|
+        cert_file = "#{source_path}/#{pattern[:cert]}"
+        key_file = "#{source_path}/#{pattern[:key]}"
+        root_ca = "#{source_path}/root-ca.pem"
+
+        if ::File.exist?(cert_file) && ::File.exist?(key_file) && ::File.exist?(root_ca)
+          Chef::Log.info("Found certificates with pattern: #{pattern[:cert]}")
+
+          # Copy certificates to filebeat certs directory with standard names
+          IO.copy_stream(cert_file, "#{dest_path}/filebeat.pem")
+          IO.copy_stream(key_file, "#{dest_path}/filebeat-key.pem")
+          IO.copy_stream(root_ca, "#{dest_path}/root-ca.pem")
+
+          certs_copied = true
+          Chef::Log.info("Certificates copied from #{source_path} to #{dest_path}")
+          break
+        end
+      end
+
+      break if certs_copied
+
+      # Also check for old .key naming convention
+      if ::File.exist?("#{source_path}/filebeat.pem") &&
+         ::File.exist?("#{source_path}/filebeat.key") &&
+         ::File.exist?("#{source_path}/root-ca.pem")
+        IO.copy_stream("#{source_path}/filebeat.pem", "#{dest_path}/filebeat.pem")
+        IO.copy_stream("#{source_path}/filebeat.key", "#{dest_path}/filebeat-key.pem")
+        IO.copy_stream("#{source_path}/root-ca.pem", "#{dest_path}/root-ca.pem")
+        certs_copied = true
+        Chef::Log.info("Certificates copied from #{source_path} (legacy .key format)")
+        break
+      end
     end
 
-    if source_path
-      # Copy certificates with correct naming convention
-      if ::File.exist?("#{source_path}/filebeat.pem")
-        IO.copy_stream("#{source_path}/filebeat.pem", "#{node['filebeat']['certs_path']}/filebeat.pem")
-      end
-      # Handle both old (.key) and new (-key.pem) naming conventions
-      if ::File.exist?("#{source_path}/filebeat-key.pem")
-        IO.copy_stream("#{source_path}/filebeat-key.pem", "#{node['filebeat']['certs_path']}/filebeat-key.pem")
-      elsif ::File.exist?("#{source_path}/filebeat.key")
-        IO.copy_stream("#{source_path}/filebeat.key", "#{node['filebeat']['certs_path']}/filebeat-key.pem")
-      end
-      if ::File.exist?("#{source_path}/root-ca.pem")
-        IO.copy_stream("#{source_path}/root-ca.pem", "#{node['filebeat']['certs_path']}/root-ca.pem")
-      end
-    else
-      Chef::Log.warn("Certificate source directory not found. Please copy certificates to #{node['filebeat']['certs_path']}:
-        - filebeat.pem
-        - filebeat-key.pem
-        - root-ca.pem
+    unless certs_copied
+      Chef::Log.warn("Certificate files not found in any source path. Please copy certificates to #{dest_path}:
+        - filebeat.pem (node certificate)
+        - filebeat-key.pem (node private key)
+        - root-ca.pem (CA certificate)
       Then run: systemctl restart filebeat")
     end
   end

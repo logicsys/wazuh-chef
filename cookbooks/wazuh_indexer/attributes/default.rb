@@ -69,6 +69,39 @@ default['wazuh_indexer']['certificates']['admin_key'] = nil
 default['wazuh_indexer']['certificates']['data_bag_name'] = nil
 default['wazuh_indexer']['certificates']['data_bag_item'] = nil
 
-# Admin credentials for API access
+# Admin credentials for API access (initial/default)
 default['wazuh_indexer']['admin_user'] = 'admin'
 default['wazuh_indexer']['admin_password'] = 'admin'
+
+# =============================================================================
+# Password Change Configuration
+# =============================================================================
+# Set change_defaults to true to change default passwords after installation.
+# This is CRITICAL for production deployments.
+#
+# Usage:
+#   1. Include 'wazuh_indexer::passwords' recipe after 'wazuh_indexer::indexer'
+#   2. Set node['wazuh_indexer']['passwords']['change_defaults'] = true
+#   3. Optionally provide custom passwords or let them be auto-generated
+# =============================================================================
+
+# Enable/disable automatic password change
+default['wazuh_indexer']['passwords']['change_defaults'] = false
+
+# Where to save generated passwords (set save_to_file to false for production)
+default['wazuh_indexer']['passwords']['save_to_file'] = true
+default['wazuh_indexer']['passwords']['output_file'] = '/root/wazuh-passwords.txt'
+
+# Users to update passwords for
+# Set password to nil to auto-generate a secure random password
+# The 'admin' and 'kibanaserver' users are most critical
+default['wazuh_indexer']['passwords']['users'] = {
+  'admin' => {
+    'password' => nil, # Will be auto-generated if nil
+    'description' => 'Main admin user for Wazuh Indexer',
+  },
+  'kibanaserver' => {
+    'password' => nil, # Used by Wazuh Dashboard
+    'description' => 'Service account for Wazuh Dashboard',
+  },
+}

@@ -105,25 +105,61 @@ log 'dashboard_service_not_started' do
   not_if { ::File.exist?("#{certs_path}/dashboard.pem") }
 end
 
-# Wait for dashboard to be ready (only if certificates are present)
-ruby_block 'wait_for_dashboard' do
-  block do
-    require 'socket'
-    max_attempts = 30
-    attempts = 0
-    loop do
-      begin
-        TCPSocket.open(
-          node['wazuh_dashboard']['yml']['server']['host'] == '0.0.0.0' ? '127.0.0.1' : node['wazuh_dashboard']['yml']['server']['host'],
-          node['wazuh_dashboard']['yml']['server']['port']
-        )
-        break
-      rescue StandardError
-        attempts += 1
-        raise 'Wazuh Dashboard failed to start' if attempts >= max_attempts
+# Wait for dashboard to be ready using HTTP health check (only if certificates are present)
+bash 'wait_for_dashboard_health' do
+  code <<-EOH
+    max_attempts=30
+    attempt=0
+    dashboard_host="#{node['wazuh_dashboard']['yml']['server']['host']}"
+    dashboard_port="#{node['wazuh_dashboard']['yml']['server']['port']}"
 
-        Chef::Log.info('Waiting for Wazuh Dashboard to start...')
-        sleep 5
+    # Use localhost if bound to 0.0.0.0
+    if [ "$dashboard_host" = "0.0.0.0" ]; then
+      dashboard_host="127.0.0.1"
+    fi
+
+    echo "Waiting for Wazuh Dashboard to be ready at https://$dashboard_host:$dashboard_port/status"
+
+    while [ $attempt -lt $max_attempts ]; do
+      http_code=$(curl -s -o /dev/null -w "%{http_code}" -k "https://$dashboard_host:$dashboard_port/status" 2>/dev/null || echo "000")
+
+      if [ "$http_code" = "200" ] || [ "$http_code" = "401" ]; then
+        echo "Wazuh Dashboard is ready (HTTP $http_code)"
+        exit 0
+      fi
+
+      echo "Waiting for dashboard... (attempt $((attempt+1))/$max_attempts, HTTP $http_code)"
+      sleep 10
+      attempt=$((attempt + 1))
+    done
+
+    echo "Wazuh Dashboard failed to become ready after $max_attempts attempts"
+    exit 1
+  EOH
+  action :run
+  timeout 600
+  only_if { ::File.exist?("#{certs_path}/dashboard.pem") }
+end
+
+# Update wazuh.yml with actual API server address after dashboard is ready
+# This ensures the dashboard can connect to the Wazuh API
+ruby_block 'update_wazuh_yml_api_url' do
+  block do
+    wazuh_yml_path = "#{node['wazuh_dashboard']['package_path']}/data/wazuh/config/wazuh.yml"
+
+    if ::File.exist?(wazuh_yml_path)
+      content = ::File.read(wazuh_yml_path)
+      api_url = node['wazuh_dashboard']['wazuh_api']['url']
+
+      # If API URL is localhost/127.0.0.1, try to determine actual server IP
+      if api_url.include?('localhost') || api_url.include?('127.0.0.1')
+        # For single-node deployments, use the node's IP if available
+        actual_ip = node['ipaddress'] || '127.0.0.1'
+        new_url = "https://#{actual_ip}"
+
+        content.gsub!(%r{url:\s*https?://(?:localhost|127\.0\.0\.1)}, "url: #{new_url}")
+        ::File.write(wazuh_yml_path, content)
+        Chef::Log.info("Updated wazuh.yml API URL to #{new_url}")
       end
     end
   end

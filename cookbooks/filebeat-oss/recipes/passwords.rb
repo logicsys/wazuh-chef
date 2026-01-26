@@ -1,0 +1,75 @@
+# frozen_string_literal: true
+
+# Cookbook:: filebeat-oss
+# Recipe:: passwords
+# Author:: Wazuh <info@wazuh.com>
+#
+# This recipe updates the Filebeat's indexer credentials in the keystore.
+# Run this after wazuh_indexer::passwords to update filebeat with new passwords.
+#
+# Usage:
+#   1. Run wazuh_indexer::passwords first to change indexer passwords
+#   2. Set the new password in node['filebeat']['indexer_password']
+#      or let it be retrieved from run_state
+#   3. Include this recipe to update the filebeat keystore
+
+admin_username = node['filebeat']['indexer_username']
+admin_password = node['filebeat']['indexer_password']
+
+# Get admin password from run_state or attributes
+ruby_block 'get_filebeat_indexer_password' do
+  block do
+    if node.run_state['wazuh_indexer_admin_password']
+      node.run_state['filebeat_indexer_password'] = node.run_state['wazuh_indexer_admin_password']
+      Chef::Log.info('Using admin password from wazuh_indexer::passwords run_state')
+    elsif node.run_state['wazuh_passwords'] && node.run_state['wazuh_passwords']['admin']
+      node.run_state['filebeat_indexer_password'] = node.run_state['wazuh_passwords']['admin']
+      Chef::Log.info('Using admin password from wazuh_passwords run_state')
+    else
+      node.run_state['filebeat_indexer_password'] = admin_password
+      Chef::Log.info('Using admin password from node attributes')
+    end
+  end
+  action :run
+end
+
+# Ensure filebeat keystore exists
+execute 'ensure_filebeat_keystore' do
+  command 'filebeat keystore create --force'
+  action :run
+  not_if { ::File.exist?('/var/lib/filebeat/filebeat.keystore') }
+end
+
+# Update username in keystore
+execute 'update_filebeat_username' do
+  command "echo '#{admin_username}' | filebeat keystore add username --force --stdin"
+  action :run
+  sensitive true
+end
+
+# Update password in keystore
+ruby_block 'update_filebeat_password' do
+  block do
+    password = node.run_state['filebeat_indexer_password']
+    system("echo '#{password}' | filebeat keystore add password --force --stdin")
+    Chef::Log.info('Updated indexer password in filebeat keystore')
+  end
+  action :run
+  sensitive true
+end
+
+# Restart filebeat to apply new credentials
+service 'filebeat' do
+  action :restart
+  only_if { ::File.exist?('/usr/lib/systemd/system/filebeat.service') }
+end
+
+log 'filebeat_password_update_complete' do
+  message <<~MSG
+    ============================================================================
+    Filebeat indexer credentials updated in keystore.
+    The filebeat service has been restarted to apply the changes.
+    ============================================================================
+  MSG
+  level :info
+end

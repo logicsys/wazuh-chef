@@ -55,3 +55,13 @@ default['wazuh_dashboard']['certificates']['root_ca_pem'] = nil
 # Set to use certificates from an encrypted data bag
 default['wazuh_dashboard']['certificates']['data_bag_name'] = nil
 default['wazuh_dashboard']['certificates']['data_bag_item'] = nil
+
+# =============================================================================
+# OpenSearch Connection Credentials
+# =============================================================================
+# The dashboard uses the 'kibanaserver' user to connect to OpenSearch/Wazuh Indexer.
+# After running wazuh_indexer::passwords, update this password and run
+# wazuh_dashboard::passwords to apply the changes.
+# =============================================================================
+default['wazuh_dashboard']['opensearch']['username'] = 'kibanaserver'
+default['wazuh_dashboard']['opensearch']['password'] = nil # Set after running wazuh_indexer::passwords

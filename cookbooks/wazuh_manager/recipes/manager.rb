@@ -26,7 +26,10 @@ else
 end
 
 # The dependences should be installed only when the cluster is enabled
-if node['ossec']['conf']['cluster']['disabled'] == 'no'
+# Handle both boolean (true/false) and string ('yes'/'no') values
+cluster_enabled = node['ossec']['conf']['cluster']['disabled'] == false ||
+                  node['ossec']['conf']['cluster']['disabled'] == 'no'
+if cluster_enabled
   case node['platform']
   when 'ubuntu', 'debian'
     log 'Wazuh_Cluster_not_compatible' do
@@ -42,12 +45,34 @@ if node['ossec']['conf']['cluster']['disabled'] == 'no'
   end
 end
 
-# Auth need to be enable only in master node.
-if node['ossec']['conf']['cluster']['node_type'] == 'master'
+# Enable Authd for agent registration
+# Required for: master nodes in cluster mode, OR single-node deployments (cluster disabled)
+# Handle both boolean (true/false) and string ('yes'/'no') values for disabled setting
+cluster_disabled_val = node['ossec']['conf']['cluster']['disabled']
+cluster_disabled = cluster_disabled_val == true || cluster_disabled_val == 'yes'
+is_master = node['ossec']['conf']['cluster']['node_type'] == 'master'
+
+if is_master || cluster_disabled
   execute 'Enable Authd' do
     command '/var/ossec/bin/wazuh-control enable auth'
     not_if 'ps axu | grep wazuh-authd | grep -v grep'
   end
+end
+
+# Initialize indexer credentials in wazuh-keystore
+# This allows the manager to authenticate to the Wazuh Indexer
+execute 'set_indexer_username' do
+  command "/var/ossec/bin/wazuh-keystore -f indexer -k username -v #{node['wazuh_manager']['indexer']['username']}"
+  action :run
+  sensitive true
+  not_if '/var/ossec/bin/wazuh-keystore -f indexer -l 2>/dev/null | grep -q username'
+end
+
+execute 'set_indexer_password' do
+  command "/var/ossec/bin/wazuh-keystore -f indexer -k password -v #{node['wazuh_manager']['indexer']['password']}"
+  action :run
+  sensitive true
+  not_if '/var/ossec/bin/wazuh-keystore -f indexer -l 2>/dev/null | grep -q password'
 end
 
 include_recipe 'wazuh_manager::common'

@@ -4,4 +4,5 @@
 
 include_recipe 'wazuh_manager::prerequisites'
 include_recipe 'wazuh_manager::repository'
+include_recipe 'wazuh_manager::certificates'
 include_recipe 'wazuh_manager::manager'

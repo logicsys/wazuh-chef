@@ -36,3 +36,11 @@ logging.files:
   keepfiles: 7
   permissions: 0644
 logging.metrics.enabled: false
+
+# Seccomp configuration (required for newer kernels with rseq syscall)
+seccomp:
+  default_action: allow
+  syscalls:
+  - action: allow
+    names:
+    - rseq

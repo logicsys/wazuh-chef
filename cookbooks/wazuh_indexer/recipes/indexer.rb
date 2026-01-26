@@ -86,12 +86,14 @@ end
 # Set system limits for wazuh-indexer
 bash 'configure_limits' do
   code <<-EOH
-    grep -q 'wazuh-indexer' /etc/security/limits.conf || {
+    grep -q 'wazuh-indexer.*nofile' /etc/security/limits.conf || {
       echo "wazuh-indexer - nofile 65535" >> /etc/security/limits.conf
       echo "wazuh-indexer - memlock unlimited" >> /etc/security/limits.conf
+      echo "wazuh-indexer hard nproc 4096" >> /etc/security/limits.conf
+      echo "wazuh-indexer soft nproc 4096" >> /etc/security/limits.conf
     }
   EOH
-  not_if 'grep -q wazuh-indexer /etc/security/limits.conf'
+  not_if 'grep -q "wazuh-indexer.*nofile" /etc/security/limits.conf'
 end
 
 # Set vm.max_map_count for OpenSearch (required for proper operation)
@@ -167,4 +169,68 @@ file '/var/lib/wazuh-indexer/.security_initialized' do
   owner 'wazuh-indexer'
   group 'wazuh-indexer'
   mode '0644'
+end
+
+# Download and inject Wazuh template into indexer (required for alerts to be indexed correctly)
+wazuh_template_url = "https://raw.githubusercontent.com/wazuh/wazuh/v#{node['wazuh']['patch_version']}/extensions/elasticsearch/7.x/wazuh-template.json"
+wazuh_template_path = '/tmp/wazuh-template.json'
+
+remote_file wazuh_template_path do
+  source wazuh_template_url
+  owner 'root'
+  group 'root'
+  mode '0644'
+  action :create
+  not_if { ::File.exist?('/var/lib/wazuh-indexer/.template_injected') }
+end
+
+# Inject Wazuh template into indexer after security is initialized
+bash 'inject_wazuh_template' do
+  code <<-EOH
+    # Wait for indexer to be fully ready
+    max_attempts=30
+    attempt=0
+    while [ $attempt -lt $max_attempts ]; do
+      http_code=$(curl -s -o /dev/null -w "%{http_code}" -k -u #{node['wazuh_indexer']['admin_user']}:#{node['wazuh_indexer']['admin_password']} https://127.0.0.1:#{node['wazuh_indexer']['yml']['http']['port']}/)
+      if [ "$http_code" = "200" ]; then
+        break
+      fi
+      sleep 5
+      attempt=$((attempt + 1))
+    done
+
+    if [ "$http_code" != "200" ]; then
+      echo "Indexer not ready after $max_attempts attempts"
+      exit 1
+    fi
+
+    # Check if template already exists
+    template_exists=$(curl -s -k -u #{node['wazuh_indexer']['admin_user']}:#{node['wazuh_indexer']['admin_password']} https://127.0.0.1:#{node['wazuh_indexer']['yml']['http']['port']}/_cat/templates/wazuh 2>/dev/null | grep -c wazuh || true)
+
+    if [ "$template_exists" = "0" ]; then
+      # Inject the template
+      curl -s -k -u #{node['wazuh_indexer']['admin_user']}:#{node['wazuh_indexer']['admin_password']} \
+        -X PUT "https://127.0.0.1:#{node['wazuh_indexer']['yml']['http']['port']}/_template/wazuh" \
+        -H 'Content-Type: application/json' \
+        -d @#{wazuh_template_path}
+
+      if [ $? -eq 0 ]; then
+        touch /var/lib/wazuh-indexer/.template_injected
+        echo "Wazuh template injected successfully"
+      else
+        echo "Failed to inject Wazuh template"
+        exit 1
+      fi
+    else
+      touch /var/lib/wazuh-indexer/.template_injected
+      echo "Wazuh template already exists"
+    fi
+  EOH
+  action :run
+  sensitive true
+  only_if do
+    ::File.exist?("#{certs_path}/indexer.pem") &&
+      ::File.exist?('/var/lib/wazuh-indexer/.security_initialized') &&
+      !::File.exist?('/var/lib/wazuh-indexer/.template_injected')
+  end
 end
