@@ -1,17 +1,19 @@
 # Wazuh - Filebeat configuration file
+# Managed by Chef - DO NOT EDIT MANUALLY
+
 output.elasticsearch:
-  hosts: [
-    <% @hosts.each do |node| %>
-      "<%= node['ip'] %>:<%= node['port'] %>",
-    <% end %>
-  ]
+  hosts:
+<% @hosts.each do |node| -%>
+    - "<%= node['ip'] %>:<%= node['port'] %>"
+<% end -%>
   protocol: https
-  username: "admin"
-  password: "admin"
+  username: ${username}
+  password: ${password}
   ssl.certificate_authorities:
     - /etc/filebeat/certs/root-ca.pem
   ssl.certificate: "/etc/filebeat/certs/filebeat.pem"
-  ssl.key: "/etc/filebeat/certs/filebeat.key"
+  ssl.key: "/etc/filebeat/certs/filebeat-key.pem"
+
 setup.template.json.enabled: true
 setup.template.json.path: '/etc/filebeat/wazuh-template.json'
 setup.template.json.name: 'wazuh'
@@ -24,3 +26,13 @@ filebeat.modules:
       enabled: true
     archives:
       enabled: false
+
+# Logging configuration
+logging.level: info
+logging.to_files: true
+logging.files:
+  path: /var/log/filebeat
+  name: filebeat
+  keepfiles: 7
+  permissions: 0644
+logging.metrics.enabled: false

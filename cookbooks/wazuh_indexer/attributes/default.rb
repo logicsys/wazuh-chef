@@ -26,7 +26,9 @@ default['wazuh_indexer']['yml']['cluster']['initial_master_nodes'] = [node['host
 default['wazuh_indexer']['yml']['discovery']['seed_hosts'] = ['127.0.0.1']
 
 # JVM settings
-default['wazuh_indexer']['jvm']['memory'] = '1g'
+# Set to 'auto' for dynamic calculation (half of system RAM, min 1GB, max 32GB)
+# Or specify explicitly like '2g', '4g', etc.
+default['wazuh_indexer']['jvm']['memory'] = 'auto'
 
 # Single node or cluster mode
 default['wazuh_indexer']['single_node'] = true

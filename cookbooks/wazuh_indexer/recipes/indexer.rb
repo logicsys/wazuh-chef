@@ -6,6 +6,24 @@
 
 certs_path = node['wazuh_indexer']['certs_path']
 
+# Calculate JVM heap size dynamically if set to 'auto'
+jvm_memory = node['wazuh_indexer']['jvm']['memory']
+if jvm_memory == 'auto'
+  # Get total system memory in MB
+  total_mem_kb = node['memory']['total'].to_i
+  total_mem_mb = total_mem_kb / 1024
+
+  # Calculate heap as half of system RAM
+  heap_mb = total_mem_mb / 2
+
+  # Apply limits: minimum 1GB, maximum 32GB
+  heap_mb = [heap_mb, 1024].max  # At least 1GB
+  heap_mb = [heap_mb, 32768].min # At most 32GB
+
+  jvm_memory = "#{heap_mb}m"
+  Chef::Log.info("Wazuh Indexer: Auto-calculated JVM heap size: #{jvm_memory} (system RAM: #{total_mem_mb}MB)")
+end
+
 # Install wazuh-indexer package
 case node['platform']
 when 'debian', 'ubuntu'
@@ -61,7 +79,7 @@ template "#{node['wazuh_indexer']['config_path']}/jvm.options" do
   owner 'wazuh-indexer'
   group 'wazuh-indexer'
   mode '0660'
-  variables(memory: node['wazuh_indexer']['jvm']['memory'])
+  variables(memory: jvm_memory)
   notifies :restart, 'service[wazuh-indexer]', :delayed
 end
 
@@ -74,6 +92,12 @@ bash 'configure_limits' do
     }
   EOH
   not_if 'grep -q wazuh-indexer /etc/security/limits.conf'
+end
+
+# Set vm.max_map_count for OpenSearch (required for proper operation)
+sysctl 'vm.max_map_count' do
+  value 262144
+  action :apply
 end
 
 # Ensure proper ownership of directories
@@ -130,11 +154,11 @@ end
 execute 'indexer_security_init' do
   command '/usr/share/wazuh-indexer/bin/indexer-security-init.sh'
   action :run
-  only_if {
+  only_if do
     ::File.exist?("#{certs_path}/indexer.pem") &&
       ::File.exist?("#{certs_path}/admin.pem") &&
       !::File.exist?('/var/lib/wazuh-indexer/.security_initialized')
-  }
+  end
   notifies :create, 'file[/var/lib/wazuh-indexer/.security_initialized]', :immediately
 end
 
