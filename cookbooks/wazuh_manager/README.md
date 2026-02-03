@@ -116,6 +116,103 @@ If you want to build a Wazuh cluster, you need to create two roles, one role for
 
 Check [cluster documentation](https://documentation.wazuh.com/current/user-manual/configuring-cluster/index.html) for more details
 
+### Data Bags for Passwords and Certificates
+
+This cookbook supports using encrypted data bags to securely store sensitive data like passwords and certificates.
+
+#### Creating an Encrypted Data Bag
+
+First, create or use an existing encryption key:
+
+```bash
+# Generate a new encryption key (if you don't have one)
+openssl rand -base64 512 | tr -d '\r\n' > /path/to/encrypted_data_bag_secret
+
+# Ensure proper permissions
+chmod 600 /path/to/encrypted_data_bag_secret
+```
+
+#### Password Data Bag
+
+Create a data bag to store the indexer password:
+
+```bash
+# Create the data bag
+knife data bag create wazuh_secrets
+
+# Create the data bag item with encryption
+knife data bag create wazuh_secrets passwords --secret-file /path/to/encrypted_data_bag_secret
+```
+
+The data bag item should contain:
+
+```json
+{
+  "id": "passwords",
+  "indexer_password": "your_secure_password_here"
+}
+```
+
+Then set the password in your role or environment by loading from the data bag in a wrapper cookbook, or set it directly in attributes:
+
+```ruby
+# In a wrapper cookbook recipe
+secrets = data_bag_item('wazuh_secrets', 'passwords')
+node.override['wazuh_manager']['indexer']['password'] = secrets['indexer_password']
+```
+
+#### Certificate Data Bag
+
+To store certificates in a data bag, create an item with the certificate content:
+
+```bash
+# Create the data bag item
+knife data bag create wazuh_secrets manager_certs --secret-file /path/to/encrypted_data_bag_secret
+```
+
+The data bag item should contain:
+
+```json
+{
+  "id": "manager_certs",
+  "filebeat_pem": "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----",
+  "filebeat_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----",
+  "root_ca_pem": "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----"
+}
+```
+
+Then configure the cookbook to use the data bag:
+
+```json
+{
+  "override_attributes": {
+    "wazuh_manager": {
+      "certificates": {
+        "data_bag_name": "wazuh_secrets",
+        "data_bag_item": "manager_certs"
+      }
+    }
+  }
+}
+```
+
+#### Alternative: Direct Attribute Configuration
+
+For simpler deployments, you can set credentials directly in attributes (less secure, not recommended for production):
+
+```json
+{
+  "override_attributes": {
+    "wazuh_manager": {
+      "indexer": {
+        "username": "admin",
+        "password": "your_password_here"
+      }
+    }
+  }
+}
+```
+
 ### Recipes
 
 #### manager.rb

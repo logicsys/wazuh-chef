@@ -62,17 +62,51 @@ end
   end
 end
 
+# Load Wazuh API password from data bag if configured
+ruby_block 'load_wazuh_api_password_from_databag' do
+  block do
+    data_bag_name = node['wazuh_dashboard']['wazuh_api']['data_bag_name']
+    data_bag_item_name = node['wazuh_dashboard']['wazuh_api']['data_bag_item']
+    data_bag_encrypted = node['wazuh_dashboard']['wazuh_api']['data_bag_encrypted']
+    api_username = node['wazuh_dashboard']['wazuh_api']['username']
+
+    if data_bag_name && data_bag_item_name
+      begin
+        Chef::Log.info("Attempting to load Wazuh API password from data bag '#{data_bag_name}/#{data_bag_item_name}'")
+
+        bag_item = if data_bag_encrypted
+                     Chef::EncryptedDataBagItem.load(data_bag_name, data_bag_item_name)
+                   else
+                     data_bag_item(data_bag_name, data_bag_item_name)
+                   end
+
+        if bag_item[api_username] && !bag_item[api_username].empty?
+          node.run_state['wazuh_api_password'] = bag_item[api_username]
+          Chef::Log.info("Loaded Wazuh API password for user '#{api_username}' from data bag")
+        else
+          Chef::Log.warn("Data bag '#{data_bag_name}/#{data_bag_item_name}' does not contain key '#{api_username}'")
+        end
+      rescue StandardError => e
+        Chef::Log.warn("Could not load Wazuh API password from data bag: #{e.message}")
+      end
+    end
+  end
+  action :run
+end
+
 template "#{node['wazuh_dashboard']['package_path']}/data/wazuh/config/wazuh.yml" do
   source 'wazuh.yml.erb'
   owner 'wazuh-dashboard'
   group 'wazuh-dashboard'
   mode '0640'
-  variables(
-    api_url: node['wazuh_dashboard']['wazuh_api']['url'],
-    api_port: node['wazuh_dashboard']['wazuh_api']['port'],
-    api_username: node['wazuh_dashboard']['wazuh_api']['username'],
-    api_password: node['wazuh_dashboard']['wazuh_api']['password']
-  )
+  variables lazy {
+    {
+      api_url: node['wazuh_dashboard']['wazuh_api']['url'],
+      api_port: node['wazuh_dashboard']['wazuh_api']['port'],
+      api_username: node['wazuh_dashboard']['wazuh_api']['username'],
+      api_password: node.run_state['wazuh_api_password'] || node['wazuh_dashboard']['wazuh_api']['password']
+    }
+  }
   notifies :restart, 'service[wazuh-dashboard]', :delayed
 end
 

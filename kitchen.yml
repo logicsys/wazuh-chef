@@ -50,6 +50,11 @@ suites:
           data_bag_item: indexer
           # Passwords are saved to /root/wazuh-passwords.txt as JSON
           # and propagated via run_state (same converge) or file (separate converges)
+      wazuh_dashboard:
+        wazuh_api:
+          # Load API password from data bag
+          data_bag_name: wazuh_secrets
+          data_bag_item: api
     driver:
       hostname: wazuh-single-node
       network:

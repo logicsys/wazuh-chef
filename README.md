@@ -39,6 +39,8 @@ We recommend using Chef Workstation for testing.
 
 * [Wazuh Agent](cookbooks/wazuh_agent)
 * [Wazuh Manager](cookbooks/wazuh_manager)
+* [Wazuh Dashboard](cookbooks/wazuh_dashboard)
+* [Wazuh Indexer](cookbooks/wazuh_indexer)
 * [Filebeat](cookbooks/filebeat)
 * [Filebeat OSS](cookbooks/filebeat-oss)
 * [Elastic Stack (Elasticsearch and Kibana)](cookbooks/elastic-stack)

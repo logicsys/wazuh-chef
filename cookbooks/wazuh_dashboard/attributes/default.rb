@@ -29,6 +29,13 @@ default['wazuh_dashboard']['wazuh_api']['port'] = 55000
 default['wazuh_dashboard']['wazuh_api']['username'] = 'wazuh-wui'
 default['wazuh_dashboard']['wazuh_api']['password'] = 'wazuh-wui'
 
+# Data bag configuration for Wazuh API password (optional)
+# If configured, the password will be read from the data bag using the username as the key
+# Example data bag item: { "id": "api", "wazuh-wui": "YourSecurePassword" }
+default['wazuh_dashboard']['wazuh_api']['data_bag_name'] = nil
+default['wazuh_dashboard']['wazuh_api']['data_bag_item'] = nil
+default['wazuh_dashboard']['wazuh_api']['data_bag_encrypted'] = false
+
 # =============================================================================
 # Certificate Configuration (Manual Deployment)
 # =============================================================================
