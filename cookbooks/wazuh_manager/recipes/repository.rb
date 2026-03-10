@@ -6,15 +6,28 @@
 
 case node['platform']
 when 'debian', 'ubuntu'
-  execute 'import_wazuh_gpg_key' do
-    command 'curl -s https://packages.wazuh.com/key/GPG-KEY-WAZUH | gpg --no-default-keyring --keyring gnupg-ring:/usr/share/keyrings/wazuh.gpg --import && chmod 644 /usr/share/keyrings/wazuh.gpg'
-    not_if { ::File.exist?('/usr/share/keyrings/wazuh.gpg') }
-  end
+  if node['platform'] == 'debian' && node['platform_version'].to_i >= 12
+    execute 'import_wazuh_gpg_key' do
+      command 'curl -s https://packages.wazuh.com/key/GPG-KEY-WAZUH -o /usr/share/keyrings/wazuh.asc && chmod 644 /usr/share/keyrings/wazuh.asc'
+      not_if { ::File.exist?('/usr/share/keyrings/wazuh.asc') }
+    end
 
-  file '/etc/apt/sources.list.d/wazuh.list' do
-    content "deb [signed-by=/usr/share/keyrings/wazuh.gpg] https://packages.wazuh.com/#{node['wazuh']['major_version']}/apt/ stable main\n"
-    mode '0644'
-    notifies :update, 'apt_update[wazuh]', :immediately
+    file '/etc/apt/sources.list.d/wazuh.list' do
+      content "deb [signed-by=/usr/share/keyrings/wazuh.asc] https://packages.wazuh.com/#{node['wazuh']['major_version']}/apt/ stable main\n"
+      mode '0644'
+      notifies :update, 'apt_update[wazuh]', :immediately
+    end
+  else
+    execute 'import_wazuh_gpg_key' do
+      command 'curl -s https://packages.wazuh.com/key/GPG-KEY-WAZUH | gpg --no-default-keyring --keyring gnupg-ring:/usr/share/keyrings/wazuh.gpg --import && chmod 644 /usr/share/keyrings/wazuh.gpg'
+      not_if { ::File.exist?('/usr/share/keyrings/wazuh.gpg') }
+    end
+
+    file '/etc/apt/sources.list.d/wazuh.list' do
+      content "deb [signed-by=/usr/share/keyrings/wazuh.gpg] https://packages.wazuh.com/#{node['wazuh']['major_version']}/apt/ stable main\n"
+      mode '0644'
+      notifies :update, 'apt_update[wazuh]', :immediately
+    end
   end
 
   apt_update 'wazuh' do
