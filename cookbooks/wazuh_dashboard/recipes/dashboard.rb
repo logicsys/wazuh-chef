@@ -213,7 +213,7 @@ bash 'wait_for_dashboard_health' do
     echo "Waiting for Wazuh Dashboard to be ready at https://$dashboard_host:$dashboard_port/status"
 
     while [ $attempt -lt $max_attempts ]; do
-      http_code=$(curl -s -o /dev/null -w "%{http_code}" -k "https://$dashboard_host:$dashboard_port/status" 2>/dev/null || echo "000")
+      http_code=$(curl --noproxy '*' -s -o /dev/null -w "%{http_code}" -k "https://$dashboard_host:$dashboard_port/status" 2>/dev/null || echo "000")
 
       if [ "$http_code" = "200" ] || [ "$http_code" = "401" ]; then
         echo "Wazuh Dashboard is ready (HTTP $http_code)"
@@ -243,15 +243,11 @@ ruby_block 'update_wazuh_yml_api_url' do
       content = ::File.read(wazuh_yml_path)
       api_url = node['wazuh_dashboard']['wazuh_api']['url']
 
-      # If API URL is localhost/127.0.0.1, try to determine actual server IP
-      if api_url.include?('localhost') || api_url.include?('127.0.0.1')
-        # For single-node deployments, use the node's IP if available
-        actual_ip = node['ipaddress'] || '127.0.0.1'
-        new_url = "https://#{actual_ip}"
-
-        content.gsub!(%r{url:\s*https?://(?:localhost|127\.0\.0\.1)}, "url: #{new_url}")
+      # Only rewrite the URL if it's not already pointing at the local machine
+      unless api_url.include?('localhost') || api_url.include?('127.0.0.1')
+        content.gsub!(%r{url:\s*https?://[^:\s]+}, "url: #{api_url}")
         ::File.write(wazuh_yml_path, content)
-        Chef::Log.info("Updated wazuh.yml API URL to #{new_url}")
+        Chef::Log.info("Updated wazuh.yml API URL to #{api_url}")
       end
     end
   end

@@ -5,6 +5,7 @@ metadata
 group 'cookbooks' do
   # Test fixtures
   cookbook 'test_certs', path: 'test/fixtures/cookbooks/test_certs'
+  cookbook 'test_firewall', path: 'test/fixtures/cookbooks/test_firewall'
 
   # Current/Active cookbooks
   cookbook 'wazuh_indexer', path: 'cookbooks/wazuh_indexer'

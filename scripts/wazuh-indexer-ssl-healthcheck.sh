@@ -520,7 +520,7 @@ if command -v curl &>/dev/null; then
     echo ""
     echo "  Testing HTTPS endpoint..."
 
-    curl_output=$(curl -s -k --connect-timeout 5 "https://$INDEXER_HOST:$INDEXER_PORT" 2>&1 || true)
+    curl_output=$(curl -s -k --noproxy "$INDEXER_HOST" --connect-timeout 5 "https://$INDEXER_HOST:$INDEXER_PORT" 2>&1 || true)
     if echo "$curl_output" | grep -qi "wazuh\|opensearch\|name.*node\|unauthorized"; then
         check_pass "HTTPS endpoint responds (with -k/insecure flag)"
         echo "       Response: ${curl_output:0:100}"
@@ -531,14 +531,22 @@ if command -v curl &>/dev/null; then
 
     # Try with CA cert
     if [ -f "$INDEXER_CERTS_DIR/$ROOT_CA" ]; then
-        curl_ca_output=$(curl -s --cacert "$INDEXER_CERTS_DIR/$ROOT_CA" --connect-timeout 5 "https://$INDEXER_HOST:$INDEXER_PORT" 2>&1 || true)
+        curl_ca_output=$(curl -s --noproxy "$INDEXER_HOST" --cacert "$INDEXER_CERTS_DIR/$ROOT_CA" --connect-timeout 5 "https://$INDEXER_HOST:$INDEXER_PORT" 2>&1 || true)
         if echo "$curl_ca_output" | grep -qi "wazuh\|opensearch\|name.*node\|unauthorized"; then
             check_pass "HTTPS endpoint responds with CA verification"
             echo "       Response: ${curl_ca_output:0:100}"
         else
-            check_fail "HTTPS endpoint fails with CA verification"
-            echo "       This confirms the certificate trust issue"
-            echo "       Error: ${curl_ca_output:0:200}"
+            # Distinguish SAN/hostname mismatch from CA trust issues
+            if echo "$curl_ca_output" | grep -qi "subject alternative name\|server certificate verification\|match\|hostname"; then
+                check_warn "HTTPS CA verification fails due to hostname/SAN mismatch"
+                echo "       Certificate SAN does not include $INDEXER_HOST"
+                echo "       This is expected if connecting via IP but cert only has DNS names"
+                echo "       The -k test above confirms the endpoint is functional"
+            else
+                check_fail "HTTPS endpoint fails with CA verification"
+                echo "       This may indicate a certificate trust issue"
+                echo "       Error: ${curl_ca_output:0:200}"
+            fi
         fi
     fi
 fi
@@ -587,6 +595,647 @@ if [ -f "$INDEXER_CERTS_DIR/$ROOT_CA" ]; then
             fi
         fi
     done
+fi
+
+# ============================================
+# 15. Web Proxy Configuration Check
+# ============================================
+section "Web Proxy Configuration"
+
+# Collect proxy vars from the environment (check both lower and upper case)
+DETECTED_HTTP_PROXY="${http_proxy:-${HTTP_PROXY:-}}"
+DETECTED_HTTPS_PROXY="${https_proxy:-${HTTPS_PROXY:-}}"
+DETECTED_NO_PROXY="${no_proxy:-${NO_PROXY:-}}"
+
+if [ -n "$DETECTED_HTTP_PROXY" ] || [ -n "$DETECTED_HTTPS_PROXY" ]; then
+    check_info "Proxy environment detected"
+    [ -n "$DETECTED_HTTP_PROXY" ]  && echo "       http_proxy  = $DETECTED_HTTP_PROXY"
+    [ -n "$DETECTED_HTTPS_PROXY" ] && echo "       https_proxy = $DETECTED_HTTPS_PROXY"
+    [ -n "$DETECTED_NO_PROXY" ]    && echo "       no_proxy    = $DETECTED_NO_PROXY"
+
+    # Warn if localhost / 127.0.0.1 is not excluded from the proxy
+    if [ -n "$DETECTED_NO_PROXY" ]; then
+        if echo "$DETECTED_NO_PROXY" | grep -qE '(^|,)\s*(localhost|127\.0\.0\.1|\*)\s*(,|$)'; then
+            check_pass "no_proxy includes localhost/127.0.0.1"
+        else
+            check_warn "no_proxy does not appear to include localhost/127.0.0.1"
+            echo "       Local Wazuh API and indexer calls may be routed through the proxy"
+            echo "       Consider: export no_proxy=\"localhost,127.0.0.1,\$no_proxy\""
+        fi
+    else
+        check_warn "no_proxy is not set — all traffic will go through the proxy"
+        echo "       Consider: export no_proxy=\"localhost,127.0.0.1\""
+    fi
+
+    echo ""
+
+    # --- Helper: check a systemd unit for proxy env vars ---
+    check_systemd_proxy() {
+        local unit="$1"
+        local label="$2"
+
+        if ! systemctl list-unit-files "$unit" &>/dev/null 2>&1; then
+            return
+        fi
+
+        # Check if the unit is installed
+        if ! systemctl cat "$unit" &>/dev/null 2>&1; then
+            check_info "$label ($unit) is not installed — skipping"
+            return
+        fi
+
+        echo ""
+        echo "  $label ($unit):"
+
+        # Gather full unit config (including drop-ins) and look for proxy vars
+        unit_env=$(systemctl show "$unit" -p Environment --no-pager 2>/dev/null || true)
+        unit_files=$(systemctl cat "$unit" 2>/dev/null || true)
+
+        found_proxy=0
+
+        # Check Environment= and EnvironmentFile= in the unit
+        if echo "$unit_files" | grep -qiE '(http_proxy|https_proxy)'; then
+            check_pass "$label unit file contains proxy environment variables"
+            echo "$unit_files" | grep -iE '(http_proxy|https_proxy|no_proxy)' | sed 's/^/       /'
+            found_proxy=1
+        fi
+
+        # Check resolved environment from systemd
+        if echo "$unit_env" | grep -qiE '(http_proxy|https_proxy)'; then
+            if [ $found_proxy -eq 0 ]; then
+                check_pass "$label has proxy vars in resolved environment"
+                echo "$unit_env" | grep -iE '(http_proxy|https_proxy|no_proxy)' | sed 's/^/       /'
+                found_proxy=1
+            fi
+        fi
+
+        # Check for EnvironmentFile that may supply proxy vars
+        env_file=$(echo "$unit_files" | grep -i 'EnvironmentFile' | sed 's/.*=//' | tr -d ' ' || true)
+        if [ -n "$env_file" ] && [ -f "$env_file" ]; then
+            if grep -qiE '(http_proxy|https_proxy)' "$env_file" 2>/dev/null; then
+                check_pass "$label EnvironmentFile ($env_file) contains proxy settings"
+                grep -iE '(http_proxy|https_proxy|no_proxy)' "$env_file" | sed 's/^/       /'
+                found_proxy=1
+            fi
+        fi
+
+        # Check for systemd drop-in overrides
+        drop_in_dir="/etc/systemd/system/${unit}.d"
+        if [ -d "$drop_in_dir" ]; then
+            for f in "$drop_in_dir"/*.conf; do
+                [ -f "$f" ] || continue
+                if grep -qiE '(http_proxy|https_proxy)' "$f" 2>/dev/null; then
+                    check_pass "$label drop-in ($f) contains proxy settings"
+                    grep -iE '(http_proxy|https_proxy|no_proxy)' "$f" | sed 's/^/       /'
+                    found_proxy=1
+                fi
+            done
+        fi
+
+        if [ $found_proxy -eq 0 ]; then
+            check_warn "$label has no proxy configuration"
+            echo "       To configure, create a drop-in override:"
+            echo "         mkdir -p /etc/systemd/system/${unit}.d"
+            echo "         cat > /etc/systemd/system/${unit}.d/proxy.conf <<DROPEOF"
+            echo "         [Service]"
+            echo "         Environment=\"http_proxy=$DETECTED_HTTP_PROXY\""
+            echo "         Environment=\"https_proxy=$DETECTED_HTTPS_PROXY\""
+            [ -n "$DETECTED_NO_PROXY" ] && echo "         Environment=\"no_proxy=$DETECTED_NO_PROXY\""
+            echo "         DROPEOF"
+            echo "         systemctl daemon-reload && systemctl restart $unit"
+        fi
+    }
+
+    # --- Check each Wazuh service ---
+    check_systemd_proxy "wazuh-indexer.service"   "Wazuh Indexer"
+    check_systemd_proxy "wazuh-manager.service"   "Wazuh Manager"
+    check_systemd_proxy "wazuh-dashboard.service" "Wazuh Dashboard"
+    check_systemd_proxy "filebeat.service"         "Filebeat"
+
+    # --- Java/JVM proxy settings for wazuh-indexer ---
+    echo ""
+    echo "  Wazuh Indexer JVM proxy options:"
+    JVM_OPTIONS_FILE="/etc/wazuh-indexer/jvm.options"
+    JVM_OPTIONS_DIR="/etc/wazuh-indexer/jvm.options.d"
+    jvm_proxy_found=0
+
+    if [ -f "$JVM_OPTIONS_FILE" ]; then
+        if grep -qE '^\-D(http|https)\.(proxyHost|proxyPort)' "$JVM_OPTIONS_FILE" 2>/dev/null; then
+            check_pass "JVM proxy options set in $JVM_OPTIONS_FILE"
+            grep -E '^\-D(http|https)\.(proxyHost|proxyPort|nonProxyHosts)' "$JVM_OPTIONS_FILE" | sed 's/^/       /'
+            jvm_proxy_found=1
+        fi
+    fi
+
+    if [ -d "$JVM_OPTIONS_DIR" ]; then
+        for f in "$JVM_OPTIONS_DIR"/*.options; do
+            [ -f "$f" ] || continue
+            if grep -qE '^\-D(http|https)\.(proxyHost|proxyPort)' "$f" 2>/dev/null; then
+                check_pass "JVM proxy options set in $f"
+                grep -E '^\-D(http|https)\.(proxyHost|proxyPort|nonProxyHosts)' "$f" | sed 's/^/       /'
+                jvm_proxy_found=1
+            fi
+        done
+    fi
+
+    if [ $jvm_proxy_found -eq 0 ]; then
+        # Parse host and port from the detected proxy URL for the hint
+        proxy_url="${DETECTED_HTTPS_PROXY:-$DETECTED_HTTP_PROXY}"
+        proxy_host=$(echo "$proxy_url" | sed -E 's|^https?://||;s|:[0-9]+/?$||;s|/$||')
+        proxy_port=$(echo "$proxy_url" | grep -oE ':[0-9]+' | tail -1 | tr -d ':')
+        proxy_port="${proxy_port:-3128}"
+
+        check_warn "No JVM proxy options found for wazuh-indexer"
+        echo "       Java does not inherit shell proxy env vars automatically."
+        echo "       To configure, create $JVM_OPTIONS_DIR/proxy.options:"
+        echo "         -Dhttp.proxyHost=$proxy_host"
+        echo "         -Dhttp.proxyPort=$proxy_port"
+        echo "         -Dhttps.proxyHost=$proxy_host"
+        echo "         -Dhttps.proxyPort=$proxy_port"
+        [ -n "$DETECTED_NO_PROXY" ] && echo "         -Dhttp.nonProxyHosts=$(echo "$DETECTED_NO_PROXY" | sed 's/,/|/g')"
+    fi
+
+    # --- Wazuh Manager ossec.conf remote proxy ---
+    echo ""
+    OSSEC_CONF="/var/ossec/etc/ossec.conf"
+    if [ -f "$OSSEC_CONF" ]; then
+        echo "  Wazuh Manager ossec.conf proxy settings:"
+        if grep -qE '<proxy>' "$OSSEC_CONF" 2>/dev/null; then
+            check_pass "Proxy configured in ossec.conf"
+            grep -A1 '<proxy>' "$OSSEC_CONF" | sed 's/^/       /'
+        else
+            check_warn "No <proxy> block in ossec.conf"
+            echo "       If the manager needs to reach external update sources through a proxy,"
+            echo "       add to the relevant <remote> or <wodle> section:"
+            echo "         <proxy>${DETECTED_HTTPS_PROXY:-$DETECTED_HTTP_PROXY}</proxy>"
+        fi
+    fi
+
+    # --- Filebeat proxy in filebeat.yml ---
+    FILEBEAT_YML="/etc/filebeat/filebeat.yml"
+    if [ -f "$FILEBEAT_YML" ]; then
+        echo ""
+        echo "  Filebeat config proxy settings:"
+        if grep -qiE '^\s*proxy_url:' "$FILEBEAT_YML" 2>/dev/null; then
+            check_pass "proxy_url configured in $FILEBEAT_YML"
+            grep -iE '^\s*proxy_url:' "$FILEBEAT_YML" | sed 's/^/       /'
+        else
+            check_info "No proxy_url in $FILEBEAT_YML (usually not needed for local indexer output)"
+        fi
+    fi
+else
+    check_pass "No proxy environment variables detected (http_proxy/https_proxy not set)"
+fi
+
+# ============================================
+# 16. Agent Event Ingestion Check
+# ============================================
+section "Agent Event Ingestion"
+
+# Build curl auth/TLS flags for indexer API queries
+CURL_BASE_FLAGS="-s --noproxy $INDEXER_HOST --connect-timeout 5 -o /dev/null -w %{http_code}"
+CURL_QUERY_FLAGS="-s --noproxy $INDEXER_HOST --connect-timeout 5"
+INDEXER_URL="https://${INDEXER_HOST}:${INDEXER_PORT}"
+
+# Try admin credentials from environment, common defaults, or ossec internal_users
+INDEXER_USER="${WAZUH_INDEXER_USER:-admin}"
+INDEXER_PASS="${WAZUH_INDEXER_PASS:-}"
+
+# If no password supplied, try to read from Wazuh internal users file
+if [ -z "$INDEXER_PASS" ]; then
+    INTERNAL_USERS="/etc/wazuh-indexer/opensearch-security/internal_users.yml"
+    if [ -f "$INTERNAL_USERS" ]; then
+        # internal_users.yml stores hashed passwords; we can't extract the plaintext
+        # Fall back to the common default
+        INDEXER_PASS="admin"
+    else
+        INDEXER_PASS="admin"
+    fi
+fi
+
+AUTH_FLAGS="-u ${INDEXER_USER}:${INDEXER_PASS}"
+TLS_FLAGS="-k"
+
+# Use client certificate if available (required by some indexer configurations)
+CERT_FLAGS=""
+if [ -f "$INDEXER_CERTS_DIR/$ADMIN_CERT" ] && [ -f "$INDEXER_CERTS_DIR/$ADMIN_KEY" ]; then
+    CERT_FLAGS="--cert $INDEXER_CERTS_DIR/$ADMIN_CERT --key $INDEXER_CERTS_DIR/$ADMIN_KEY"
+fi
+
+# --- Verify API is reachable with auth ---
+api_status=$(curl $CURL_BASE_FLAGS $TLS_FLAGS $CERT_FLAGS $AUTH_FLAGS "$INDEXER_URL" 2>/dev/null || echo "000")
+if [ "$api_status" = "000" ]; then
+    check_fail "Cannot reach indexer API at $INDEXER_URL"
+    echo "       Skipping ingestion checks (API unreachable)"
+elif [ "$api_status" = "401" ] || [ "$api_status" = "403" ]; then
+    check_fail "Indexer API authentication failed (HTTP $api_status)"
+    echo "       Set WAZUH_INDEXER_USER and WAZUH_INDEXER_PASS env vars if defaults don't work"
+    echo "       Skipping ingestion checks"
+else
+    check_pass "Indexer API reachable (HTTP $api_status)"
+
+    # --- Check wazuh-alerts-* index exists and has documents ---
+    echo ""
+    echo "  Checking wazuh-alerts-* index..."
+    alerts_response=$(curl $CURL_QUERY_FLAGS $TLS_FLAGS $CERT_FLAGS $AUTH_FLAGS "$INDEXER_URL/wazuh-alerts-*/_count" 2>/dev/null || echo "")
+
+    if [ -z "$alerts_response" ]; then
+        check_fail "No response when querying wazuh-alerts-* index"
+    elif echo "$alerts_response" | grep -q '"count"'; then
+        alerts_count=$(echo "$alerts_response" | grep -oP '"count"\s*:\s*\K[0-9]+' || echo "0")
+        if [ "$alerts_count" -gt 0 ] 2>/dev/null; then
+            check_pass "wazuh-alerts-* contains $alerts_count documents"
+        else
+            check_warn "wazuh-alerts-* index exists but has 0 documents"
+            echo "       Agents may not be sending events, or Filebeat may not be forwarding them"
+        fi
+    elif echo "$alerts_response" | grep -q "index_not_found"; then
+        check_fail "wazuh-alerts-* index does not exist"
+        echo "       No alerts have been ingested yet — check Filebeat and manager connectivity"
+    else
+        check_warn "Unexpected response from wazuh-alerts-* count query"
+        echo "       Response: ${alerts_response:0:200}"
+    fi
+
+    # --- Check for recent events (last 5 minutes) ---
+    echo ""
+    echo "  Checking for recent events (last 5 minutes)..."
+    recent_query='{"query":{"range":{"timestamp":{"gte":"now-5m"}}}}'
+    recent_response=$(curl $CURL_QUERY_FLAGS $TLS_FLAGS $CERT_FLAGS $AUTH_FLAGS \
+        -H "Content-Type: application/json" \
+        -d "$recent_query" \
+        "$INDEXER_URL/wazuh-alerts-*/_count" 2>/dev/null || echo "")
+
+    if echo "$recent_response" | grep -q '"count"'; then
+        recent_count=$(echo "$recent_response" | grep -oP '"count"\s*:\s*\K[0-9]+' || echo "0")
+        if [ "$recent_count" -gt 0 ] 2>/dev/null; then
+            check_pass "$recent_count events ingested in the last 5 minutes"
+        else
+            check_warn "No events in the last 5 minutes"
+            echo "       This may be normal for low-traffic environments"
+            echo "       Verify: agents are connected, Filebeat is running, manager is receiving events"
+        fi
+    fi
+
+    # --- Check which agents have reported in ---
+    echo ""
+    echo "  Checking for distinct reporting agents..."
+    agents_query='{"size":0,"aggs":{"agents":{"terms":{"field":"agent.id","size":50}}}}'
+    agents_response=$(curl $CURL_QUERY_FLAGS $TLS_FLAGS $CERT_FLAGS $AUTH_FLAGS \
+        -H "Content-Type: application/json" \
+        -d "$agents_query" \
+        "$INDEXER_URL/wazuh-alerts-*/_search" 2>/dev/null || echo "")
+
+    if echo "$agents_response" | grep -q '"buckets"'; then
+        agent_count=$(echo "$agents_response" | grep -oP '"buckets"\s*:\s*\[' | head -1)
+        # Count agent entries in the buckets array
+        num_agents=$(echo "$agents_response" | grep -oP '"key"\s*:\s*"[^"]*"' | wc -l)
+        if [ "$num_agents" -gt 0 ] 2>/dev/null; then
+            check_pass "$num_agents distinct agent(s) have events in the index"
+            echo "       Agent IDs:"
+            echo "$agents_response" | grep -oP '"key"\s*:\s*"\K[^"]+' | head -10 | while read -r aid; do
+                agent_docs=$(echo "$agents_response" | grep -oP "\"key\"\\s*:\\s*\"${aid}\"[^}]*\"doc_count\"\\s*:\\s*\\K[0-9]+" || echo "?")
+                echo "         - Agent $aid ($agent_docs events)"
+            done
+        else
+            check_warn "No agent data found in aggregation"
+        fi
+    fi
+
+    # --- Check wazuh-archives-* if present ---
+    echo ""
+    echo "  Checking wazuh-archives-* index..."
+    archives_response=$(curl $CURL_QUERY_FLAGS $TLS_FLAGS $CERT_FLAGS $AUTH_FLAGS "$INDEXER_URL/wazuh-archives-*/_count" 2>/dev/null || echo "")
+
+    if echo "$archives_response" | grep -q '"count"'; then
+        archives_count=$(echo "$archives_response" | grep -oP '"count"\s*:\s*\K[0-9]+' || echo "0")
+        if [ "$archives_count" -gt 0 ] 2>/dev/null; then
+            check_pass "wazuh-archives-* contains $archives_count documents"
+        else
+            check_info "wazuh-archives-* exists but has 0 documents (archiving may be disabled)"
+        fi
+    elif echo "$archives_response" | grep -q "index_not_found"; then
+        check_info "wazuh-archives-* index does not exist (archiving is likely disabled — this is normal)"
+    fi
+
+    # --- Check Filebeat connectivity ---
+    echo ""
+    echo "  Checking Filebeat status..."
+    if systemctl is-active --quiet filebeat 2>/dev/null; then
+        check_pass "Filebeat service is running"
+
+        # Check for Filebeat output errors in recent logs
+        fb_errors=$(journalctl -u filebeat --no-pager -n 100 --since "5 minutes ago" 2>/dev/null | grep -ciE "(error|failed|connection refused)" 2>/dev/null) || fb_errors=0
+        if [ "$fb_errors" -gt 0 ]; then
+            check_warn "Filebeat has $fb_errors error(s) in the last 5 minutes"
+            echo "       Recent errors:"
+            journalctl -u filebeat --no-pager -n 100 --since "5 minutes ago" 2>/dev/null | grep -iE "(error|failed|connection refused)" | tail -5 | sed 's/^/         /'
+        else
+            check_pass "No Filebeat errors in the last 5 minutes"
+        fi
+    else
+        check_fail "Filebeat service is NOT running"
+        echo "       Filebeat forwards Wazuh manager events to the indexer"
+        echo "       Try: systemctl start filebeat && systemctl status filebeat"
+    fi
+fi
+
+# ============================================
+# 17. Filebeat Configuration Validation
+# ============================================
+section "Filebeat Configuration"
+
+FILEBEAT_YML="/etc/filebeat/filebeat.yml"
+FILEBEAT_CERTS_DIR="/etc/filebeat/certs"
+
+if [ ! -f "$FILEBEAT_YML" ]; then
+    check_fail "Filebeat config not found: $FILEBEAT_YML"
+else
+    check_pass "Filebeat config exists: $FILEBEAT_YML"
+
+    # --- Output target ---
+    echo ""
+    echo "  Output configuration:"
+    if grep -q 'output.elasticsearch' "$FILEBEAT_YML" 2>/dev/null; then
+        check_pass "Output type: output.elasticsearch (expected for Wazuh)"
+
+        # Extract hosts
+        fb_hosts=$(grep -A5 'output.elasticsearch' "$FILEBEAT_YML" 2>/dev/null | grep -E '^\s*-\s*"?[0-9a-zA-Z]' | head -5)
+        if [ -n "$fb_hosts" ]; then
+            echo "  Configured hosts:"
+            echo "$fb_hosts" | sed 's/^/       /'
+        else
+            # Try single-line hosts format
+            fb_hosts_inline=$(grep 'hosts:' "$FILEBEAT_YML" 2>/dev/null | head -1)
+            if [ -n "$fb_hosts_inline" ]; then
+                echo "  Configured hosts:"
+                echo "$fb_hosts_inline" | sed 's/^/       /'
+            else
+                check_warn "Could not parse hosts from filebeat.yml"
+            fi
+        fi
+
+        # Check protocol
+        fb_protocol=$(grep -E '^\s*protocol:' "$FILEBEAT_YML" 2>/dev/null | head -1 | awk '{print $2}' | tr -d '"'"'")
+        if [ "$fb_protocol" = "https" ]; then
+            check_pass "Protocol: https"
+        elif [ -n "$fb_protocol" ]; then
+            check_warn "Protocol: $fb_protocol (expected https for Wazuh indexer)"
+        else
+            check_warn "No protocol specified (defaults to http — should be https for Wazuh indexer)"
+        fi
+    else
+        check_fail "No output.elasticsearch section found in filebeat.yml"
+        echo "       Wazuh Filebeat must output to the indexer via output.elasticsearch"
+    fi
+
+    # --- SSL/TLS configuration ---
+    echo ""
+    echo "  SSL/TLS configuration:"
+    if grep -q 'ssl.certificate_authorities' "$FILEBEAT_YML" 2>/dev/null; then
+        fb_ca=$(grep 'ssl.certificate_authorities' "$FILEBEAT_YML" 2>/dev/null | head -1)
+        echo "  $fb_ca" | sed 's/^/     /'
+
+        # Extract CA path and check it exists
+        fb_ca_path=$(grep -A1 'ssl.certificate_authorities' "$FILEBEAT_YML" 2>/dev/null | grep -oE '/[^ "]+\.pem' | head -1)
+        if [ -n "$fb_ca_path" ] && [ -f "$fb_ca_path" ]; then
+            check_pass "SSL CA file exists: $fb_ca_path"
+
+            # Verify it's the same CA as the indexer
+            if [ -f "$INDEXER_CERTS_DIR/$ROOT_CA" ]; then
+                fb_ca_hash=$(openssl x509 -in "$fb_ca_path" -noout -hash 2>/dev/null)
+                idx_ca_hash=$(openssl x509 -in "$INDEXER_CERTS_DIR/$ROOT_CA" -noout -hash 2>/dev/null)
+                if [ "$fb_ca_hash" = "$idx_ca_hash" ]; then
+                    check_pass "Filebeat CA matches indexer Root CA"
+                else
+                    check_fail "Filebeat CA does NOT match indexer Root CA!"
+                    echo "       Filebeat CA hash: $fb_ca_hash ($fb_ca_path)"
+                    echo "       Indexer CA hash:  $idx_ca_hash ($INDEXER_CERTS_DIR/$ROOT_CA)"
+                fi
+            fi
+        elif [ -n "$fb_ca_path" ]; then
+            check_fail "SSL CA file missing: $fb_ca_path"
+        fi
+    else
+        check_warn "No ssl.certificate_authorities configured"
+        echo "       Filebeat needs the Root CA to verify the indexer's certificate"
+    fi
+
+    # Check client certificate
+    fb_cert_path=$(grep -E '^\s*ssl.certificate:' "$FILEBEAT_YML" 2>/dev/null | grep -oE '/[^ "]+' | head -1)
+    fb_key_path=$(grep -E '^\s*ssl.key:' "$FILEBEAT_YML" 2>/dev/null | grep -oE '/[^ "]+' | head -1)
+
+    if [ -n "$fb_cert_path" ]; then
+        if [ -f "$fb_cert_path" ]; then
+            check_pass "SSL client certificate exists: $fb_cert_path"
+
+            # Check certificate validity
+            if openssl x509 -in "$fb_cert_path" -noout -checkend 0 2>/dev/null; then
+                fb_cert_expiry=$(openssl x509 -in "$fb_cert_path" -noout -enddate 2>/dev/null | cut -d= -f2)
+                check_pass "Filebeat certificate is valid (expires: $fb_cert_expiry)"
+            else
+                check_fail "Filebeat certificate is EXPIRED!"
+            fi
+
+            # Verify it's signed by the same CA
+            if [ -f "$fb_ca_path" ]; then
+                if openssl verify -CAfile "$fb_ca_path" "$fb_cert_path" 2>/dev/null | grep -q "OK"; then
+                    check_pass "Filebeat certificate is signed by its configured CA"
+                else
+                    check_fail "Filebeat certificate is NOT signed by its configured CA!"
+                fi
+            fi
+        else
+            check_fail "SSL client certificate missing: $fb_cert_path"
+        fi
+    else
+        check_info "No ssl.certificate configured (client cert auth not in use)"
+    fi
+
+    if [ -n "$fb_key_path" ]; then
+        if [ -f "$fb_key_path" ]; then
+            check_pass "SSL client key exists: $fb_key_path"
+
+            # Verify key matches certificate
+            if [ -n "$fb_cert_path" ] && [ -f "$fb_cert_path" ]; then
+                fb_cert_mod=$(openssl x509 -noout -modulus -in "$fb_cert_path" 2>/dev/null | md5sum | cut -d' ' -f1)
+                fb_key_mod=$(openssl rsa -noout -modulus -in "$fb_key_path" 2>/dev/null | md5sum | cut -d' ' -f1)
+                if [ "$fb_cert_mod" = "$fb_key_mod" ]; then
+                    check_pass "Filebeat certificate and key match"
+                else
+                    check_fail "Filebeat certificate and key DO NOT match!"
+                fi
+            fi
+        else
+            check_fail "SSL client key missing: $fb_key_path"
+        fi
+    elif [ -n "$fb_cert_path" ]; then
+        check_fail "ssl.certificate is set but ssl.key is missing"
+    fi
+
+    # --- Credentials ---
+    echo ""
+    echo "  Credentials configuration:"
+    if grep -qE '^\s*username:' "$FILEBEAT_YML" 2>/dev/null; then
+        fb_username=$(grep -E '^\s*username:' "$FILEBEAT_YML" 2>/dev/null | head -1 | awk '{print $2}' | tr -d '"'"'")
+        if echo "$fb_username" | grep -q '^\$'; then
+            check_pass "Username uses keystore variable: $fb_username"
+        else
+            check_pass "Username configured: $fb_username"
+        fi
+    else
+        check_warn "No username configured in filebeat.yml"
+    fi
+
+    if grep -qE '^\s*password:' "$FILEBEAT_YML" 2>/dev/null; then
+        fb_password=$(grep -E '^\s*password:' "$FILEBEAT_YML" 2>/dev/null | head -1 | awk '{print $2}' | tr -d '"'"'")
+        if echo "$fb_password" | grep -q '^\$'; then
+            check_pass "Password uses keystore variable: $fb_password"
+        else
+            check_pass "Password configured (hardcoded in config)"
+        fi
+    else
+        check_warn "No password configured in filebeat.yml"
+    fi
+
+    # Check keystore exists if variables reference it
+    FILEBEAT_KEYSTORE="/var/lib/filebeat/filebeat.keystore"
+    if grep -qE '\$\{' "$FILEBEAT_YML" 2>/dev/null; then
+        if [ -f "$FILEBEAT_KEYSTORE" ]; then
+            check_pass "Filebeat keystore exists: $FILEBEAT_KEYSTORE"
+        else
+            check_fail "Filebeat keystore missing: $FILEBEAT_KEYSTORE"
+            echo "       Config references keystore variables but keystore does not exist"
+            echo "       Create with: filebeat keystore create"
+        fi
+    fi
+
+    # --- Wazuh module ---
+    echo ""
+    echo "  Wazuh module configuration:"
+    if grep -q 'module: wazuh' "$FILEBEAT_YML" 2>/dev/null; then
+        check_pass "Wazuh module is configured in filebeat.yml"
+
+        if grep -qE '^\s+alerts:' "$FILEBEAT_YML" 2>/dev/null; then
+            alerts_enabled=$(grep -A2 'alerts:' "$FILEBEAT_YML" 2>/dev/null | grep 'enabled:' | head -1 | awk '{print $2}')
+            if [ "$alerts_enabled" = "true" ]; then
+                check_pass "Wazuh alerts collection is enabled"
+            else
+                check_warn "Wazuh alerts collection is not enabled"
+            fi
+        fi
+
+        if grep -qE '^\s+archives:' "$FILEBEAT_YML" 2>/dev/null; then
+            archives_enabled=$(grep -A2 'archives:' "$FILEBEAT_YML" 2>/dev/null | grep 'enabled:' | head -1 | awk '{print $2}')
+            if [ "$archives_enabled" = "true" ]; then
+                check_info "Wazuh archives collection is enabled"
+            else
+                check_info "Wazuh archives collection is disabled (normal)"
+            fi
+        fi
+    else
+        check_fail "Wazuh module is NOT configured in filebeat.yml"
+        echo "       filebeat.yml must include: - module: wazuh"
+    fi
+
+    # --- Wazuh module files on disk ---
+    echo ""
+    echo "  Wazuh module installation:"
+    FILEBEAT_MODULE_DIR="/usr/share/filebeat/module"
+    WAZUH_MODULE_DIR="$FILEBEAT_MODULE_DIR/wazuh"
+
+    if [ -d "$WAZUH_MODULE_DIR" ]; then
+        check_pass "Wazuh module directory exists: $WAZUH_MODULE_DIR"
+
+        # Check for alerts manifest
+        if [ -f "$WAZUH_MODULE_DIR/alerts/manifest.yml" ]; then
+            check_pass "Wazuh alerts manifest present"
+        else
+            check_fail "Wazuh alerts manifest missing: $WAZUH_MODULE_DIR/alerts/manifest.yml"
+        fi
+
+        # Check for archives manifest
+        if [ -f "$WAZUH_MODULE_DIR/archives/manifest.yml" ]; then
+            check_pass "Wazuh archives manifest present"
+        else
+            check_warn "Wazuh archives manifest missing: $WAZUH_MODULE_DIR/archives/manifest.yml"
+        fi
+
+        # Check module.yml
+        if [ -f "$WAZUH_MODULE_DIR/module.yml" ]; then
+            check_pass "Wazuh module.yml present"
+        else
+            check_fail "Wazuh module.yml missing: $WAZUH_MODULE_DIR/module.yml"
+        fi
+
+        # Show module contents
+        echo "       Module contents:"
+        ls -la "$WAZUH_MODULE_DIR"/ 2>/dev/null | sed 's/^/         /'
+    else
+        check_fail "Wazuh module directory missing: $WAZUH_MODULE_DIR"
+        echo "       The Wazuh Filebeat module is not installed"
+        echo "       Install with: curl -so /tmp/wazuh-filebeat-module.tar.gz https://packages.wazuh.com/4.x/filebeat/wazuh-filebeat-0.4.tar.gz"
+        echo "                     tar -xzf /tmp/wazuh-filebeat-module.tar.gz -C $FILEBEAT_MODULE_DIR"
+
+        # Check if any modules directory exists at all
+        if [ -d "$FILEBEAT_MODULE_DIR" ]; then
+            check_pass "Filebeat modules directory exists: $FILEBEAT_MODULE_DIR"
+            echo "       Installed modules:"
+            ls -d "$FILEBEAT_MODULE_DIR"/*/ 2>/dev/null | xargs -I{} basename {} | sed 's/^/         /' || echo "         (none)"
+        else
+            check_fail "Filebeat modules directory missing: $FILEBEAT_MODULE_DIR"
+        fi
+    fi
+
+    # Verify filebeat can load the module
+    echo ""
+    echo "  Module load test:"
+    if command -v filebeat &>/dev/null; then
+        fb_modules_output=$(filebeat modules list 2>&1 || true)
+        if echo "$fb_modules_output" | grep -q "wazuh"; then
+            if echo "$fb_modules_output" | grep -B999 "^Disabled:" | grep -q "wazuh"; then
+                check_warn "Wazuh module is installed but DISABLED in Filebeat"
+                echo "       This may be fine if enabled via filebeat.yml directly"
+            else
+                check_pass "Wazuh module is listed and enabled in Filebeat"
+            fi
+        else
+            check_fail "Wazuh module not found in 'filebeat modules list'"
+            echo "       Output: ${fb_modules_output:0:200}"
+        fi
+    else
+        check_info "filebeat command not in PATH — skipping module load test"
+    fi
+
+    # --- Wazuh template ---
+    echo ""
+    echo "  Wazuh index template:"
+    fb_template_path=$(grep 'setup.template.json.path' "$FILEBEAT_YML" 2>/dev/null | head -1 | awk '{print $2}' | tr -d '"'"'")
+    if [ -n "$fb_template_path" ]; then
+        if [ -f "$fb_template_path" ]; then
+            check_pass "Wazuh template file exists: $fb_template_path"
+        else
+            check_fail "Wazuh template file missing: $fb_template_path"
+            echo "       This template defines the index mappings for Wazuh alerts"
+        fi
+    else
+        check_warn "setup.template.json.path not set in filebeat.yml"
+    fi
+
+    fb_template_name=$(grep 'setup.template.json.name' "$FILEBEAT_YML" 2>/dev/null | head -1 | awk '{print $2}' | tr -d '"'"'")
+    if [ "$fb_template_name" = "wazuh" ]; then
+        check_pass "Template name: wazuh"
+    elif [ -n "$fb_template_name" ]; then
+        check_warn "Template name: $fb_template_name (expected: wazuh)"
+    fi
+
+    # --- ILM should be disabled ---
+    fb_ilm=$(grep 'setup.ilm.enabled' "$FILEBEAT_YML" 2>/dev/null | head -1 | awk '{print $2}')
+    if [ "$fb_ilm" = "false" ]; then
+        check_pass "ILM is disabled (correct for Wazuh)"
+    elif [ -n "$fb_ilm" ]; then
+        check_warn "ILM is set to $fb_ilm (should be false for Wazuh)"
+    fi
 fi
 
 # ============================================

@@ -37,10 +37,12 @@ suites:
       - recipe[wazuh_indexer::passwords]
       - recipe[wazuh_manager::default]
       - recipe[wazuh_manager::passwords]
+      - recipe[wazuh_manager::api_passwords]
       - recipe[filebeat-oss::default]
       - recipe[filebeat-oss::passwords]
       - recipe[wazuh_dashboard::default]
       - recipe[wazuh_dashboard::passwords]
+      - recipe[test_firewall::default]
     attributes:
       wazuh_indexer:
         passwords:
@@ -50,6 +52,11 @@ suites:
           data_bag_item: indexer
           # Passwords are saved to /root/wazuh-passwords.txt as JSON
           # and propagated via run_state (same converge) or file (separate converges)
+      wazuh_manager:
+        api_passwords:
+          # Load API user passwords from data bag
+          data_bag_name: wazuh_secrets
+          data_bag_item: api
       wazuh_dashboard:
         wazuh_api:
           # Load API password from data bag
@@ -58,7 +65,7 @@ suites:
     driver:
       hostname: wazuh-single-node
       network:
-        - ["private_network", {ip: "192.168.56.10"}]
+        - ["private_network", ip: "192.168.56.10"]
       customize:
         memory: 4096
         cpus: 2
@@ -123,7 +130,7 @@ suites:
     driver:
       hostname: wazuh-agent
       network:
-        - ["private_network", {ip: "192.168.56.11"}]
+        - ["private_network", ip: "192.168.56.11"]
       customize:
         memory: 512
         cpus: 1
